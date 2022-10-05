@@ -135,7 +135,7 @@ def load_config(config_path):
 
 @app.command()
 @slack_sender(webhook_url=os.getenv("KK_SLACK_WH_URL"), channel="general")
-def main(workdir: Path, dataset: str = typer.Option(...), dataset_split: str = "val", sde: SDEOption = SDEOption.subVPSDE, config_name: str = "xarray_cncsnpp_continuous", checkpoint_id: int = typer.Option(...), image_size: int = None, batch_size: int = None, num_samples: int = 3, map_features: int = None):
+def main(workdir: Path, dataset: str = typer.Option(...), dataset_split: str = "val", sde: SDEOption = SDEOption.subVPSDE, checkpoint_id: int = typer.Option(...), batch_size: int = None, num_samples: int = 3):
     config_path = os.path.join(workdir, "config.yml")
     config = load_config(config_path)
     config.data.dataset_name = dataset
