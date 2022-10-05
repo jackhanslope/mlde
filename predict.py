@@ -138,11 +138,7 @@ def load_config(config_path):
 def main(workdir: Path, dataset: str = typer.Option(...), dataset_split: str = "val", sde: SDEOption = SDEOption.subVPSDE, config_name: str = "xarray_cncsnpp_continuous", checkpoint_id: int = typer.Option(...), image_size: int = None, batch_size: int = None, num_samples: int = 3, map_features: int = None):
     config_path = os.path.join(workdir, "config.yml")
     config = load_config(config_path)
-    # config.data.dataset_name = dataset
-    # if map_features is not None:
-    #     config.model.map_features = map_features
-    # if image_size is not None:
-    #     config.data.image_size = image_size
+    config.data.dataset_name = dataset
     if batch_size is not None:
         config.eval.batch_size = batch_size
 
