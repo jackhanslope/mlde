@@ -35,23 +35,19 @@ def get_variables(config):
 
   return variables, target_variables
 
-def get_transform(config, transform_dir, evaluation=False):
+def get_transform(config, transform_dir, xr_data_train, evaluation=False):
   variables, target_variables = get_variables(config)
-  data_dirpath = os.path.join(os.getenv('DERIVED_DATA'), 'moose', 'nc-datasets', config.data.dataset_name)
-  xr_data_train = xr.load_dataset(os.path.join(data_dirpath, 'train.nc'))
-
-  input_transform_path = os.path.join(transform_dir, 'input.pickle')
-  target_transform_path = os.path.join(transform_dir, 'target.pickle')
+  dataset_transform_dir = os.path.join(transform_dir, config.data.dataset_name)
+  input_transform_path = os.path.join(dataset_transform_dir, 'input.pickle')
+  target_transform_path = os.path.join(dataset_transform_dir, 'target.pickle')
 
   if os.path.exists(input_transform_path):
     with open(input_transform_path, 'rb') as f:
-      logging.info("Using stored input transform")
+      logging.info(f"Using stored input transform: {input_transform_path}")
       transform = pickle.load(f)
     with open(target_transform_path, 'rb') as f:
-      logging.info("Using stored target transform")
+      logging.info(f"Using stored target transform: {target_transform_path}")
       target_transform = pickle.load(f)
-    xr_data_train = transform.transform(xr_data_train)
-    xr_data_train = target_transform.transform(xr_data_train)
   else:
     transform = ComposeT([
       CropT(config.data.image_size),
@@ -63,18 +59,19 @@ def get_transform(config, transform_dir, evaluation=False):
       UnitRangeT(target_variables),
     ])
     logging.info("Fitting input transform")
-    xr_data_train = transform.fit_transform(xr_data_train)
+    transform.fit_transform(xr_data_train)
     logging.info("Fitting target transform")
-    xr_data_train = target_transform.fit_transform(xr_data_train)
+    target_transform.fit_transform(xr_data_train)
 
     if not evaluation:
+      os.makedirs(dataset_transform_dir, exist_ok=True)
       with open(input_transform_path, 'wb') as f:
         # Pickle the 'data' dictionary using the highest protocol available.
-        logging.info("Storing input transform")
+        logging.info(f"Storing input transform: {input_transform_path}")
         pickle.dump(transform, f, pickle.HIGHEST_PROTOCOL)
       with open(target_transform_path, 'wb') as f:
         # Pickle the 'data' dictionary using the highest protocol available.
-        logging.info("Storing target transform")
+        logging.info(f"Storing target transform: {target_transform_path}")
         pickle.dump(target_transform, f, pickle.HIGHEST_PROTOCOL)
 
   return transform, target_transform, xr_data_train
@@ -114,17 +111,21 @@ def get_dataset(config, transform_dir, uniform_dequantization=False, evaluation=
   # Create dataset builders for each dataset.
   if config.data.dataset == "XR":
     variables, target_variables = get_variables(config)
-    transform, target_transform, xr_data_train = get_transform(config, transform_dir, evaluation=evaluation)
 
     data_dirpath = os.path.join(os.getenv('DERIVED_DATA'), 'moose', 'nc-datasets', config.data.dataset_name)
+    xr_data_train = xr.load_dataset(os.path.join(data_dirpath, 'train.nc'))
     xr_data_eval = xr.load_dataset(os.path.join(data_dirpath, f'{split}.nc'))
+
+    transform, target_transform = get_transform(config, transform_dir, xr_data_train, evaluation=evaluation)
+
+    xr_data_train = transform.transform(xr_data_train)
+    xr_data_train = target_transform.transform(xr_data_train)
+    train_dataset = XRDataset(xr_data_train, variables)
+    train_data_loader = DataLoader(train_dataset, batch_size=batch_size)
+
     xr_data_eval = transform.transform(xr_data_eval)
     xr_data_eval = target_transform.transform(xr_data_eval)
-
-    train_dataset = XRDataset(xr_data_train, variables)
     eval_dataset = XRDataset(xr_data_eval, variables)
-
-    train_data_loader = DataLoader(train_dataset, batch_size=batch_size)
     eval_data_loader = DataLoader(eval_dataset, batch_size=batch_size)
 
     return train_data_loader, eval_data_loader, None
