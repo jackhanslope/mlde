@@ -37,9 +37,9 @@ def get_variables(config):
 
 def get_transform(config, transform_dir, xr_data_train, evaluation=False):
   variables, target_variables = get_variables(config)
-
-  input_transform_path = os.path.join(transform_dir, config.data.dataset_name, 'input.pickle')
-  target_transform_path = os.path.join(transform_dir, config.data.dataset_name, 'target.pickle')
+  dataset_transform_dir = os.path.join(transform_dir, config.data.dataset_name)
+  input_transform_path = os.path.join(dataset_transform_dir, 'input.pickle')
+  target_transform_path = os.path.join(dataset_transform_dir, 'target.pickle')
 
   if os.path.exists(input_transform_path):
     with open(input_transform_path, 'rb') as f:
@@ -64,6 +64,7 @@ def get_transform(config, transform_dir, xr_data_train, evaluation=False):
     target_transform.fit_transform(xr_data_train)
 
     if not evaluation:
+      os.makedirs(dataset_transform_dir, exist_ok=True)
       with open(input_transform_path, 'wb') as f:
         # Pickle the 'data' dictionary using the highest protocol available.
         logging.info(f"Storing input transform: {input_transform_path}")
