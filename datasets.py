@@ -74,7 +74,7 @@ def get_transform(config, transform_dir, xr_data_train, evaluation=False):
         logging.info(f"Storing target transform: {target_transform_path}")
         pickle.dump(target_transform, f, pickle.HIGHEST_PROTOCOL)
 
-  return transform, target_transform, xr_data_train
+  return transform, target_transform
 
 def get_data_scaler(config):
   """Data normalizer. Assume data are always in [0, 1]."""
