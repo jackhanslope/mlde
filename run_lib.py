@@ -77,6 +77,11 @@ def train(config, workdir):
       contains checkpoint training will be resumed from the latest checkpoint.
   """
 
+  # save the config
+  config_path = os.path.join(workdir, "config.yml")
+  with open(config_path, 'w') as f:
+    f.write(config.to_yaml())
+
   # Create directories for experimental logs
   sample_dir = os.path.join(workdir, "samples")
   os.makedirs(sample_dir, exist_ok=True)
@@ -223,6 +228,8 @@ def train(config, workdir):
         ds['target_pr'] = xr.DataArray(eval_x_batch.cpu()[:,0].squeeze(1), dims=dims)
 
         fig, axes = plt.subplots(nrow*2, nrow, figsize=(24,24), subplot_kw={'projection': cp_model_rotated_pole})
+        if nrow == 1:
+          axes = [axes]
         for isample in range(sample.shape[0]):
             ax = axes[(isample // nrow)*2][isample % nrow]
             ax.coastlines()
