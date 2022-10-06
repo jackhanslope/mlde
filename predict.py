@@ -152,11 +152,12 @@ def main(workdir: Path, dataset: str = typer.Option(...), dataset_split: str = "
     transform_dir = os.path.join(workdir, "transforms")
 
     # Data
-    _, eval_dl, _ = datasets.get_dataset(config, transform_dir, evaluation=True, split=dataset_split)
+    train_dl, eval_dl, _ = datasets.get_dataset(config, transform_dir, evaluation=True, split=dataset_split)
 
-    xr_data_eval  = eval_dl.dataset.ds
+    xr_data_train = train_dl.dataset.ds
+    xr_data_eval = eval_dl.dataset.ds
 
-    _, target_transform, _ = datasets.get_transform(config, transform_dir, evaluation=True)
+    _, target_transform = datasets.get_transform(config, transform_dir, xr_data_train, evaluation=True)
 
     for sample_id in range(num_samples):
         typer.echo(f"Sample run {sample_id}...")
