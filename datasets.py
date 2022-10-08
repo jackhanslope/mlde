@@ -63,16 +63,15 @@ def get_transform(config, transform_dir, xr_data_train, evaluation=False):
     logging.info("Fitting target transform")
     target_transform.fit_transform(xr_data_train)
 
-    if not evaluation:
-      os.makedirs(dataset_transform_dir, exist_ok=True)
-      with open(input_transform_path, 'wb') as f:
-        # Pickle the 'data' dictionary using the highest protocol available.
-        logging.info(f"Storing input transform: {input_transform_path}")
-        pickle.dump(transform, f, pickle.HIGHEST_PROTOCOL)
-      with open(target_transform_path, 'wb') as f:
-        # Pickle the 'data' dictionary using the highest protocol available.
-        logging.info(f"Storing target transform: {target_transform_path}")
-        pickle.dump(target_transform, f, pickle.HIGHEST_PROTOCOL)
+    os.makedirs(dataset_transform_dir, exist_ok=True)
+    with open(input_transform_path, 'wb') as f:
+      # Pickle the 'data' dictionary using the highest protocol available.
+      logging.info(f"Storing input transform: {input_transform_path}")
+      pickle.dump(transform, f, pickle.HIGHEST_PROTOCOL)
+    with open(target_transform_path, 'wb') as f:
+      # Pickle the 'data' dictionary using the highest protocol available.
+      logging.info(f"Storing target transform: {target_transform_path}")
+      pickle.dump(target_transform, f, pickle.HIGHEST_PROTOCOL)
 
   return transform, target_transform
 
