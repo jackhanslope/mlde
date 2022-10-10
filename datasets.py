@@ -133,7 +133,7 @@ def get_dataset(config, transform_dir, uniform_dequantization=False, evaluation=
     eval_dataset = XRDataset(xr_data_eval, variables)
     eval_data_loader = DataLoader(eval_dataset, batch_size=batch_size)
 
-    return train_data_loader, eval_data_loader, None
+    return train_data_loader, eval_data_loader, transform, target_transform
 
   else:
     raise NotImplementedError(

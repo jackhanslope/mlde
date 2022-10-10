@@ -113,7 +113,7 @@ def train(config, workdir):
   os.makedirs(transform_dir, exist_ok=True)
 
   # Build data iterators
-  train_ds, eval_ds, _ = datasets.get_dataset(config,
+  train_ds, eval_ds, _, _ = datasets.get_dataset(config,
                                               transform_dir,
                                               uniform_dequantization=config.data.uniform_dequantization)
   train_iter = iter(train_ds)  # pytype: disable=wrong-arg-types
