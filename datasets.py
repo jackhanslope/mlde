@@ -15,11 +15,13 @@
 
 # pylint: skip-file
 """Return training and evaluation/test datasets from config files."""
+from datetime import timedelta
 import logging
 import os
 import pickle
 import yaml
 
+from flufl.lock import Lock
 from torch.utils.data import DataLoader
 import xarray as xr
 
@@ -37,43 +39,45 @@ def get_variables(config):
 
 def get_transform(config, transform_dir):
   dataset_transform_dir = os.path.join(transform_dir, config.data.dataset_name)
+  os.makedirs(dataset_transform_dir, exist_ok=True)
   input_transform_path = os.path.join(dataset_transform_dir, 'input.pickle')
   target_transform_path = os.path.join(dataset_transform_dir, 'target.pickle')
+  lock_path = os.path.join(dataset_transform_dir, '.lock')
+  lock = Lock(lock_path, lifetime=timedelta(hours=1))
+  with lock:
+    if os.path.exists(input_transform_path):
+      with open(input_transform_path, 'rb') as f:
+        logging.info(f"Using stored input transform: {input_transform_path}")
+        transform = pickle.load(f)
+      with open(target_transform_path, 'rb') as f:
+        logging.info(f"Using stored target transform: {target_transform_path}")
+        target_transform = pickle.load(f)
+    else:
+      variables, target_variables = get_variables(config)
+      data_dirpath = os.path.join(os.getenv('DERIVED_DATA'), 'moose', 'nc-datasets', config.data.dataset_name)
+      xr_data_train = xr.load_dataset(os.path.join(data_dirpath, 'train.nc'))
+      transform = ComposeT([
+        CropT(config.data.image_size),
+        Standardize(variables),
+        UnitRangeT(variables)])
+      target_transform = ComposeT([
+        SqrtT(target_variables),
+        ClipT(target_variables),
+        UnitRangeT(target_variables),
+      ])
+      logging.info("Fitting input transform")
+      transform.fit_transform(xr_data_train)
+      logging.info("Fitting target transform")
+      target_transform.fit_transform(xr_data_train)
 
-  if os.path.exists(input_transform_path):
-    with open(input_transform_path, 'rb') as f:
-      logging.info(f"Using stored input transform: {input_transform_path}")
-      transform = pickle.load(f)
-    with open(target_transform_path, 'rb') as f:
-      logging.info(f"Using stored target transform: {target_transform_path}")
-      target_transform = pickle.load(f)
-  else:
-    variables, target_variables = get_variables(config)
-    data_dirpath = os.path.join(os.getenv('DERIVED_DATA'), 'moose', 'nc-datasets', config.data.dataset_name)
-    xr_data_train = xr.load_dataset(os.path.join(data_dirpath, 'train.nc'))
-    transform = ComposeT([
-      CropT(config.data.image_size),
-      Standardize(variables),
-      UnitRangeT(variables)])
-    target_transform = ComposeT([
-      SqrtT(target_variables),
-      ClipT(target_variables),
-      UnitRangeT(target_variables),
-    ])
-    logging.info("Fitting input transform")
-    transform.fit_transform(xr_data_train)
-    logging.info("Fitting target transform")
-    target_transform.fit_transform(xr_data_train)
-
-    os.makedirs(dataset_transform_dir, exist_ok=True)
-    with open(input_transform_path, 'wb') as f:
-      # Pickle the 'data' dictionary using the highest protocol available.
-      logging.info(f"Storing input transform: {input_transform_path}")
-      pickle.dump(transform, f, pickle.HIGHEST_PROTOCOL)
-    with open(target_transform_path, 'wb') as f:
-      # Pickle the 'data' dictionary using the highest protocol available.
-      logging.info(f"Storing target transform: {target_transform_path}")
-      pickle.dump(target_transform, f, pickle.HIGHEST_PROTOCOL)
+      with open(input_transform_path, 'wb') as f:
+        # Pickle the 'data' dictionary using the highest protocol available.
+        logging.info(f"Storing input transform: {input_transform_path}")
+        pickle.dump(transform, f, pickle.HIGHEST_PROTOCOL)
+      with open(target_transform_path, 'wb') as f:
+        # Pickle the 'data' dictionary using the highest protocol available.
+        logging.info(f"Storing target transform: {target_transform_path}")
+        pickle.dump(target_transform, f, pickle.HIGHEST_PROTOCOL)
 
   return transform, target_transform
 
