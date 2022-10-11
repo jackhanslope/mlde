@@ -4,6 +4,7 @@
 set -euo pipefail
 
 model_run_id=$1
+shift 1
 cpm_dataset="bham_gcmx-4x_spechum-temp-vorticity850_random"
 gcm_dataset="bham_60km-4x_spechum-temp-vorticity850_random"
 final_checkpoint_id=20
