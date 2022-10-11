@@ -42,7 +42,7 @@ def get_transform(config, transform_dir, evaluation=False):
   os.makedirs(dataset_transform_dir, exist_ok=True)
   input_transform_path = os.path.join(dataset_transform_dir, 'input.pickle')
   target_transform_path = os.path.join(transform_dir, 'target.pickle')
-  lock_path = os.path.join(dataset_transform_dir, '.lock')
+  lock_path = os.path.join(transform_dir, '.lock')
   lock = Lock(lock_path, lifetime=timedelta(hours=1))
   with lock:
     # only load training dataset if neither transform exists
