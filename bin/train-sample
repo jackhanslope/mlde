@@ -4,9 +4,9 @@
 set -euo pipefail
 
 model_run_id=$1
-shift 1
-cpm_dataset="bham_gcmx-4x_spechum-temp-vorticity850_random"
-gcm_dataset="bham_60km-4x_spechum-temp-vorticity850_random"
+cpm_dataset=$2
+gcm_dataset=$3
+shift 3
 final_checkpoint_id=20
 # Add any other config on the commandline for training
 # --config.model.map_features=8 --config.data.num_conditioning_channels=11
