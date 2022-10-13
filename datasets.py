@@ -40,8 +40,21 @@ def get_variables(config):
 def get_transform(config, transform_dir, evaluation=False):
   dataset_transform_dir = os.path.join(transform_dir, config.data.dataset_name)
   os.makedirs(dataset_transform_dir, exist_ok=True)
-  input_transform_path = os.path.join(dataset_transform_dir, 'input.pickle')
-  target_transform_path = os.path.join(transform_dir, 'target.pickle')
+  if config.data.input_transform == "shared":
+    input_transform_path = os.path.join(dataset_transform_dir, 'input.pickle')
+  elif config.data.input_transform == "per-ds":
+    input_transform_path = os.path.join(transform_dir, 'input.pickle')
+  else:
+    raise RuntimeError(f"Unknown tranform sharing {config.data.input_transform}")
+
+  if config.data.target_transform == "shared":
+    target_transform_path = os.path.join(dataset_transform_dir, 'target.pickle')
+  elif config.data.target_transform == "per-ds":
+    target_transform_path = os.path.join(transform_dir, 'target.pickle')
+  else:
+    raise RuntimeError(f"Unknown tranform sharing {config.data.target_transform}")
+
+
   lock_path = os.path.join(transform_dir, '.lock')
   lock = Lock(lock_path, lifetime=timedelta(hours=1))
   with lock:
@@ -56,6 +69,8 @@ def get_transform(config, transform_dir, evaluation=False):
         logging.info(f"Using stored input transform: {input_transform_path}")
         input_transform = pickle.load(f)
     else:
+      if evaluation and config.data.input_transform == "shared":
+        raise RuntimeError("Shared input transform should only be fitted during training")
       input_transform = ComposeT([
         CropT(config.data.image_size),
         Standardize(variables),
@@ -71,8 +86,8 @@ def get_transform(config, transform_dir, evaluation=False):
         logging.info(f"Using stored target transform: {target_transform_path}")
         target_transform = pickle.load(f)
     else:
-      if evaluation:
-        raise RuntimeError("Target transform should only be fitted during training")
+      if evaluation and config.data.target_transform == "shared":
+        raise RuntimeError("Shared target transform should only be fitted during training")
       target_transform = ComposeT([
         SqrtT(target_variables),
         ClipT(target_variables),
