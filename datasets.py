@@ -15,11 +15,13 @@
 
 # pylint: skip-file
 """Return training and evaluation/test datasets from config files."""
+from datetime import timedelta
 import logging
 import os
 import pickle
 import yaml
 
+from flufl.lock import Lock
 from torch.utils.data import DataLoader
 import xarray as xr
 
@@ -35,46 +37,55 @@ def get_variables(config):
 
   return variables, target_variables
 
-def get_transform(config, transform_dir, xr_data_train, evaluation=False):
-  variables, target_variables = get_variables(config)
+def get_transform(config, transform_dir, evaluation=False):
   dataset_transform_dir = os.path.join(transform_dir, config.data.dataset_name)
+  os.makedirs(dataset_transform_dir, exist_ok=True)
   input_transform_path = os.path.join(dataset_transform_dir, 'input.pickle')
-  target_transform_path = os.path.join(dataset_transform_dir, 'target.pickle')
+  target_transform_path = os.path.join(transform_dir, 'target.pickle')
+  lock_path = os.path.join(transform_dir, '.lock')
+  lock = Lock(lock_path, lifetime=timedelta(hours=1))
+  with lock:
+    # only load training dataset if neither transform exists
+    if not (os.path.exists(input_transform_path) and os.path.exists(target_transform_path)):
+      variables, target_variables = get_variables(config)
+      data_dirpath = os.path.join(os.getenv('DERIVED_DATA'), 'moose', 'nc-datasets', config.data.dataset_name)
+      xr_data_train = xr.load_dataset(os.path.join(data_dirpath, 'train.nc'))
 
-  if os.path.exists(input_transform_path):
-    with open(input_transform_path, 'rb') as f:
-      logging.info(f"Using stored input transform: {input_transform_path}")
-      transform = pickle.load(f)
-    with open(target_transform_path, 'rb') as f:
-      logging.info(f"Using stored target transform: {target_transform_path}")
-      target_transform = pickle.load(f)
-  else:
-    transform = ComposeT([
-      CropT(config.data.image_size),
-      Standardize(variables),
-      UnitRangeT(variables)])
-    target_transform = ComposeT([
-      SqrtT(target_variables),
-      ClipT(target_variables),
-      UnitRangeT(target_variables),
-    ])
-    logging.info("Fitting input transform")
-    transform.fit_transform(xr_data_train)
-    logging.info("Fitting target transform")
-    target_transform.fit_transform(xr_data_train)
-
-    if not evaluation:
-      os.makedirs(dataset_transform_dir, exist_ok=True)
+    if os.path.exists(input_transform_path):
+      with open(input_transform_path, 'rb') as f:
+        logging.info(f"Using stored input transform: {input_transform_path}")
+        input_transform = pickle.load(f)
+    else:
+      input_transform = ComposeT([
+        CropT(config.data.image_size),
+        Standardize(variables),
+        UnitRangeT(variables)])
+      logging.info("Fitting input transform")
+      input_transform.fit_transform(xr_data_train)
       with open(input_transform_path, 'wb') as f:
         # Pickle the 'data' dictionary using the highest protocol available.
         logging.info(f"Storing input transform: {input_transform_path}")
-        pickle.dump(transform, f, pickle.HIGHEST_PROTOCOL)
+        pickle.dump(input_transform, f, pickle.HIGHEST_PROTOCOL)
+    if os.path.exists(target_transform_path):
+      with open(target_transform_path, 'rb') as f:
+        logging.info(f"Using stored target transform: {target_transform_path}")
+        target_transform = pickle.load(f)
+    else:
+      if evaluation:
+        raise RuntimeError("Target transform should only be fitted during training")
+      target_transform = ComposeT([
+        SqrtT(target_variables),
+        ClipT(target_variables),
+        UnitRangeT(target_variables),
+      ])
+      logging.info("Fitting target transform")
+      target_transform.fit_transform(xr_data_train)
       with open(target_transform_path, 'wb') as f:
         # Pickle the 'data' dictionary using the highest protocol available.
         logging.info(f"Storing target transform: {target_transform_path}")
         pickle.dump(target_transform, f, pickle.HIGHEST_PROTOCOL)
 
-  return transform, target_transform, xr_data_train
+  return input_transform, target_transform
 
 def get_data_scaler(config):
   """Data normalizer. Assume data are always in [0, 1]."""
@@ -112,11 +123,11 @@ def get_dataset(config, transform_dir, uniform_dequantization=False, evaluation=
   if config.data.dataset == "XR":
     variables, target_variables = get_variables(config)
 
+    transform, target_transform = get_transform(config, transform_dir, evaluation=evaluation)
+
     data_dirpath = os.path.join(os.getenv('DERIVED_DATA'), 'moose', 'nc-datasets', config.data.dataset_name)
     xr_data_train = xr.load_dataset(os.path.join(data_dirpath, 'train.nc'))
     xr_data_eval = xr.load_dataset(os.path.join(data_dirpath, f'{split}.nc'))
-
-    transform, target_transform = get_transform(config, transform_dir, xr_data_train, evaluation=evaluation)
 
     xr_data_train = transform.transform(xr_data_train)
     xr_data_train = target_transform.transform(xr_data_train)
@@ -128,7 +139,7 @@ def get_dataset(config, transform_dir, uniform_dequantization=False, evaluation=
     eval_dataset = XRDataset(xr_data_eval, variables)
     eval_data_loader = DataLoader(eval_dataset, batch_size=batch_size)
 
-    return train_data_loader, eval_data_loader, None
+    return train_data_loader, eval_data_loader, transform, target_transform
 
   else:
     raise NotImplementedError(
