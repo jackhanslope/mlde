@@ -20,13 +20,13 @@ set -x
 
 # train
 
-training_job_id=$(lbatch -g 1 -m 16 -q cnu -t ${training_duration} --condaenv cuda-downscaling -- python main.py --workdir /user/work/vf20964/score-sde/workdirs/subvpsde/xarray_cncsnpp_continuous/${model_run_id} --config configs/subvp/xarray_cncsnpp_continuous.py --config.data.dataset_name=${cpm_dataset} $@ --mode train)
+training_job_id=$(lbatch -g 1 -m 16 -q gpu,cnu -t ${training_duration} --condaenv cuda-downscaling -- python main.py --workdir /user/work/vf20964/score-sde/workdirs/subvpsde/xarray_cncsnpp_continuous/${model_run_id} --config configs/subvp/xarray_cncsnpp_continuous.py --config.data.dataset_name=${cpm_dataset} $@ --mode train)
 echo ${training_job_id}
 
 # sample CPM
 
-lbatch -g 1 -m 16 -q cnu -t ${sampling_duration} --condaenv cuda-downscaling -d ${training_job_id} --array 1-${sampling_jobs} -- python predict.py --checkpoint-id ${final_checkpoint_id} --num-samples 1 --dataset ${cpm_dataset} /user/work/vf20964/score-sde/workdirs/subvpsde/xarray_cncsnpp_continuous/${model_run_id}
+lbatch -g 1 -m 16 -q gpu,cnu -t ${sampling_duration} --condaenv cuda-downscaling -d ${training_job_id} --array 1-${sampling_jobs} -- python predict.py --checkpoint-id ${final_checkpoint_id} --num-samples 1 --dataset ${cpm_dataset} /user/work/vf20964/score-sde/workdirs/subvpsde/xarray_cncsnpp_continuous/${model_run_id}
 
 # sample GCM
 
-lbatch -g 1 -m 16 -q cnu -t ${sampling_duration} --condaenv cuda-downscaling -d ${training_job_id} --array 1-${sampling_jobs} -- python predict.py --checkpoint-id ${final_checkpoint_id} --num-samples 1 --dataset ${gcm_dataset} /user/work/vf20964/score-sde/workdirs/subvpsde/xarray_cncsnpp_continuous/${model_run_id}
+lbatch -g 1 -m 16 -q gpu,cnu -t ${sampling_duration} --condaenv cuda-downscaling -d ${training_job_id} --array 1-${sampling_jobs} -- python predict.py --checkpoint-id ${final_checkpoint_id} --num-samples 1 --dataset ${gcm_dataset} /user/work/vf20964/score-sde/workdirs/subvpsde/xarray_cncsnpp_continuous/${model_run_id}
