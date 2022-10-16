@@ -41,16 +41,16 @@ def get_transform(config, transform_dir, evaluation=False):
   dataset_transform_dir = os.path.join(transform_dir, config.data.dataset_name)
   os.makedirs(dataset_transform_dir, exist_ok=True)
   if config.data.input_transform == "shared":
-    input_transform_path = os.path.join(dataset_transform_dir, 'input.pickle')
-  elif config.data.input_transform == "per-ds":
     input_transform_path = os.path.join(transform_dir, 'input.pickle')
+  elif config.data.input_transform == "per-ds":
+    input_transform_path = os.path.join(dataset_transform_dir, 'input.pickle')
   else:
     raise RuntimeError(f"Unknown tranform sharing {config.data.input_transform}")
 
   if config.data.target_transform == "shared":
-    target_transform_path = os.path.join(dataset_transform_dir, 'target.pickle')
-  elif config.data.target_transform == "per-ds":
     target_transform_path = os.path.join(transform_dir, 'target.pickle')
+  elif config.data.target_transform == "per-ds":
+    target_transform_path = os.path.join(dataset_transform_dir, 'target.pickle')
   else:
     raise RuntimeError(f"Unknown tranform sharing {config.data.target_transform}")
 
