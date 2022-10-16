@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import re
 
+from codetiming import Timer
 from knockknock import slack_sender
 import shortuuid
 import typer
@@ -134,6 +135,7 @@ def load_config(config_path):
     return config
 
 @app.command()
+@Timer(name="sample", text="{name}: {minutes:.1f} minutes", logger=logger.info)
 @slack_sender(webhook_url=os.getenv("KK_SLACK_WH_URL"), channel="general")
 def main(workdir: Path, dataset: str = typer.Option(...), dataset_split: str = "val", sde: SDEOption = SDEOption.subVPSDE, checkpoint_id: int = typer.Option(...), batch_size: int = None, num_samples: int = 3):
     config_path = os.path.join(workdir, "config.yml")
