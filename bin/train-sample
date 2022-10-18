@@ -13,7 +13,7 @@ final_checkpoint_id=20
 
 training_duration=15
 samples_per_job=1
-sampling_duration=$((12*samples_per_job))
+sampling_duration=$((18*samples_per_job))
 sampling_jobs=3
 
 set -x
