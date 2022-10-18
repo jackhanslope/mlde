@@ -11,7 +11,7 @@ final_checkpoint_id=20
 # Add any other config on the commandline for training
 # --config.model.map_features=8 --config.data.num_conditioning_channels=11
 
-training_duration=12
+training_duration=15
 samples_per_job=1
 sampling_duration=$((12*samples_per_job))
 sampling_jobs=3
