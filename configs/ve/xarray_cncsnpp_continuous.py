@@ -58,6 +58,5 @@ def get_config():
 
   # data
   data = config.data
-  data.num_conditioning_channels = 1
 
   return config

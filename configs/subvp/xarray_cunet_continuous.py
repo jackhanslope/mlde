@@ -64,7 +64,6 @@ def get_config():
 
   # data
   data = config.data
-  data.num_conditioning_channels = 1
   data.image_size = 28 # u-net architechture currently designed to work with 28x28 images
 
   return config
