@@ -14,7 +14,7 @@ def get_default_configs():
   ## store additional checkpoints for preemption in cloud computing environments
   training.snapshot_freq_for_preemption = 1000
   ## produce samples at each snapshot.
-  training.snapshot_sampling = True
+  training.snapshot_sampling = False
   training.likelihood_weighting = False
   training.continuous = True
   training.reduce_mean = False
@@ -45,7 +45,8 @@ def get_default_configs():
   data.random_flip = False
   data.centered = False
   data.uniform_dequantization = False
-  data.num_channels = 1
+  data.input_transform = "per-ds"
+  data.target_transform = "shared"
 
   # model
   config.model = model = ml_collections.ConfigDict()

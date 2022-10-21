@@ -4,24 +4,21 @@
 set -euo pipefail
 
 model_run_id=$1
-shift 1
-cpm_dataset="bham_gcmx-4x_spechum-temp-vorticity850_random"
-gcm_dataset="bham_60km-4x_spechum-temp-vorticity850_random"
-final_checkpoint_id=20
+cpm_dataset=$2
+gcm_dataset=$3
+shift 3
 # Add any other config on the commandline for training
-# --config.model.map_features=8 --config.data.num_conditioning_channels=11
+# --config.model.map_features=8
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 set -x
 
 # train
 
-training_job_id=$(lbatch -g 1 -m 16 -q cnu -t 71 --condaenv cuda-downscaling -- python main.py --workdir /user/work/vf20964/score-sde/workdirs/subvpsde/xarray_cncsnpp_continuous/${model_run_id} --config configs/subvp/xarray_cncsnpp_continuous.py --config.data.dataset_name=${cpm_dataset} $@ --mode train)
+training_job_id=$(${SCRIPT_DIR}/queue-training ${model_run_id} ${cpm_dataset} $@)
 echo ${training_job_id}
 
-# sample CPM
+# sample
 
-lbatch -g 1 -m 16 -q cnu -t 71 --condaenv cuda-downscaling -d ${training_job_id} --array 1-3 -- python predict.py --checkpoint-id ${final_checkpoint_id} --num-samples 1 --dataset ${cpm_dataset} /user/work/vf20964/score-sde/workdirs/subvpsde/xarray_cncsnpp_continuous/${model_run_id}
-
-# sample GCM
-
-lbatch -g 1 -m 16 -q cnu -t 71 --condaenv cuda-downscaling -d ${training_job_id} --array 1-3 -- python predict.py --checkpoint-id ${final_checkpoint_id} --num-samples 1 --dataset ${gcm_dataset} /user/work/vf20964/score-sde/workdirs/subvpsde/xarray_cncsnpp_continuous/${model_run_id}
+${SCRIPT_DIR}/queue-sampling ${model_run_id} ${cpm_dataset} ${gcm_dataset} ${training_job_id}
