@@ -25,7 +25,7 @@ from flufl.lock import Lock
 from torch.utils.data import DataLoader
 import xarray as xr
 
-from ml_downscaling_emulator.training.dataset import CropT, Standardize, UnitRangeT, ClipT, SqrtT, ComposeT, XRDataset
+from ml_downscaling_emulator.training.dataset import build_input_transform, build_target_transform, XRDataset
 
 def get_variables(config):
   data_dirpath = os.path.join(os.getenv('DERIVED_DATA'), 'moose', 'nc-datasets', config.data.dataset_name)
@@ -40,6 +40,9 @@ def get_variables(config):
 def get_transform(config, transform_dir, evaluation=False):
   dataset_transform_dir = os.path.join(transform_dir, config.data.dataset_name)
   os.makedirs(dataset_transform_dir, exist_ok=True)
+
+  variables, target_variables = get_variables(config)
+
   if config.data.input_transform == "shared":
     input_transform_path = os.path.join(transform_dir, 'input.pickle')
   elif config.data.input_transform == "per-ds":
@@ -58,12 +61,6 @@ def get_transform(config, transform_dir, evaluation=False):
   lock_path = os.path.join(transform_dir, '.lock')
   lock = Lock(lock_path, lifetime=timedelta(hours=1))
   with lock:
-    # only load training dataset if neither transform exists
-    if not (os.path.exists(input_transform_path) and os.path.exists(target_transform_path)):
-      variables, target_variables = get_variables(config)
-      data_dirpath = os.path.join(os.getenv('DERIVED_DATA'), 'moose', 'nc-datasets', config.data.dataset_name)
-      xr_data_train = xr.load_dataset(os.path.join(data_dirpath, 'train.nc'))
-
     if os.path.exists(input_transform_path):
       with open(input_transform_path, 'rb') as f:
         logging.info(f"Using stored input transform: {input_transform_path}")
@@ -71,11 +68,10 @@ def get_transform(config, transform_dir, evaluation=False):
     else:
       if evaluation and config.data.input_transform == "shared":
         raise RuntimeError("Shared input transform should only be fitted during training")
-      input_transform = ComposeT([
-        CropT(config.data.image_size),
-        Standardize(variables),
-        UnitRangeT(variables)])
       logging.info("Fitting input transform")
+      data_dirpath = os.path.join(os.getenv('DERIVED_DATA'), 'moose', 'nc-datasets', config.data.dataset_name)
+      xr_data_train = xr.load_dataset(os.path.join(data_dirpath, 'train.nc'))
+      input_transform = build_input_transform(variables, config.data.image_size)
       input_transform.fit_transform(xr_data_train)
       with open(input_transform_path, 'wb') as f:
         # Pickle the 'data' dictionary using the highest protocol available.
@@ -88,12 +84,10 @@ def get_transform(config, transform_dir, evaluation=False):
     else:
       if evaluation and config.data.target_transform == "shared":
         raise RuntimeError("Shared target transform should only be fitted during training")
-      target_transform = ComposeT([
-        SqrtT(target_variables),
-        ClipT(target_variables),
-        UnitRangeT(target_variables),
-      ])
       logging.info("Fitting target transform")
+      data_dirpath = os.path.join(os.getenv('DERIVED_DATA'), 'moose', 'nc-datasets', config.data.dataset_name)
+      xr_data_train = xr.load_dataset(os.path.join(data_dirpath, 'train.nc'))
+      target_transform = build_target_transform(target_variables)
       target_transform.fit_transform(xr_data_train)
       with open(target_transform_path, 'wb') as f:
         # Pickle the 'data' dictionary using the highest protocol available.
