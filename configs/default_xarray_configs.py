@@ -45,7 +45,6 @@ def get_default_configs():
   data.random_flip = False
   data.centered = False
   data.uniform_dequantization = False
-  data.num_channels = 1
   data.input_transform = "per-ds"
   data.target_transform = "shared"
 
