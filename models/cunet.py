@@ -40,8 +40,8 @@ class ScoreNet(nn.Module):
     super().__init__()
     self.config = config
     marginal_prob_std=None
-    input_channels=config.data.num_channels+config.data.num_conditioning_channels+config.model.map_features
-    output_channels=config.data.num_channels
+    cond_channels, output_channels = list(map(len, utils.get_variables(config)))
+    input_channels= output_channels + cond_channels + config.model.map_features
     channels=[32, 64, 128, 256]
     embed_dim=256
 

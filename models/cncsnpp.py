@@ -139,7 +139,7 @@ class cNCSNpp(nn.Module):
 
     # Downsampling block
 
-    channels = config.data.num_channels + config.data.num_conditioning_channels + config.model.map_features
+    channels = sum(map(len, utils.get_variables(config))) + config.model.map_features
     if progressive_input != 'none':
       input_pyramid_ch = channels
 
