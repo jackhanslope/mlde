@@ -23,6 +23,7 @@ import os
 import time
 import PIL
 
+from codetiming import Timer
 import numpy as np
 # import tensorflow as tf
 # import tensorflow_gan as tfgan
@@ -68,6 +69,7 @@ def plot_to_image(figure):
   image = torchvision.transforms.ToTensor()(image)#.unsqueeze(0)
   return image
 
+@Timer(name="train", text="{name}: {minutes:.1f} minutes", logger=logging.info)
 def train(config, workdir):
   """Runs the training pipeline.
 
@@ -149,7 +151,8 @@ def train(config, workdir):
 
   # Building sampling functions
   if config.training.snapshot_sampling:
-    sampling_shape = (config.training.batch_size, config.data.num_channels,
+    num_output_channels = len(datasets.get_variables(config)[1])
+    sampling_shape = (config.training.batch_size, num_output_channels,
                       config.data.image_size, config.data.image_size)
     sampling_fn = sampling.get_sampling_fn(config, sde, sampling_shape, inverse_scaler, sampling_eps)
 

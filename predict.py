@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import re
 
+from codetiming import Timer
 from knockknock import slack_sender
 import shortuuid
 import typer
@@ -86,7 +87,8 @@ def load_model(config, sde, ckpt_filename):
     ema.copy_to(score_model.parameters())
 
     # Sampling
-    sampling_shape = (config.eval.batch_size, config.data.num_channels,
+    num_output_channels = len(datasets.get_variables(config)[1])
+    sampling_shape = (config.eval.batch_size, num_output_channels,
                           config.data.image_size, config.data.image_size)
     sampling_fn = sampling.get_sampling_fn(config, sde, sampling_shape, inverse_scaler, sampling_eps)
 
@@ -134,6 +136,7 @@ def load_config(config_path):
     return config
 
 @app.command()
+@Timer(name="sample", text="{name}: {minutes:.1f} minutes", logger=logger.info)
 @slack_sender(webhook_url=os.getenv("KK_SLACK_WH_URL"), channel="general")
 def main(workdir: Path, dataset: str = typer.Option(...), dataset_split: str = "val", sde: SDEOption = SDEOption.subVPSDE, checkpoint_id: int = typer.Option(...), batch_size: int = None, num_samples: int = 3):
     config_path = os.path.join(workdir, "config.yml")

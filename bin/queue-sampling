@@ -1,0 +1,28 @@
+#!/usr/bin/bash
+# setup jobs for sampling from a model
+
+set -euo pipefail
+
+sampling_jobs=3
+samples_per_job=1
+sampling_duration=$((18*samples_per_job))
+
+model_run_id=$1
+checkpoint_id=20
+cpm_dataset=$2
+gcm_dataset=$3
+if [ ! -z "${4:-}" ]; then
+  dependency_opt="-d ${4}"
+else
+  dependency_opt=""
+fi
+
+set -x
+
+# sample CPM
+
+lbatch ${dependency_opt} -g 1 -m 16 -q gpu,cnu -t ${sampling_duration} --condaenv cuda-downscaling --array 1-${sampling_jobs} -- python predict.py --checkpoint-id ${checkpoint_id} --num-samples 1 --dataset ${cpm_dataset} /user/work/vf20964/score-sde/workdirs/subvpsde/xarray_cncsnpp_continuous/${model_run_id}
+
+# sample GCM
+
+lbatch ${dependency_opt} -g 1 -m 16 -q gpu,cnu -t ${sampling_duration} --condaenv cuda-downscaling --array 1-${sampling_jobs} -- python predict.py --checkpoint-id ${checkpoint_id} --num-samples 1 --dataset ${gcm_dataset} /user/work/vf20964/score-sde/workdirs/subvpsde/xarray_cncsnpp_continuous/${model_run_id}
