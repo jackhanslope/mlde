@@ -268,10 +268,6 @@ class cNCSNpp(nn.Module):
     else:
       temb = None
 
-    if not self.config.data.centered:
-      # If input data is in [0, 1]
-      x = 2 * x - 1.
-
     # Downsampling block
     input_pyramid = None
     if self.progressive_input != 'none':

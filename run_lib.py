@@ -120,9 +120,6 @@ def train(config, workdir):
                                               uniform_dequantization=config.data.uniform_dequantization)
   train_iter = iter(train_ds)  # pytype: disable=wrong-arg-types
   eval_iter = iter(eval_ds)  # pytype: disable=wrong-arg-types
-  # Create data normalizer and its inverse
-  scaler = datasets.get_data_scaler(config)
-  inverse_scaler = datasets.get_data_inverse_scaler(config)
 
   # Setup SDEs
   if config.training.sde.lower() == 'vpsde':
@@ -154,7 +151,7 @@ def train(config, workdir):
     num_output_channels = len(datasets.get_variables(config)[1])
     sampling_shape = (config.training.batch_size, num_output_channels,
                       config.data.image_size, config.data.image_size)
-    sampling_fn = sampling.get_sampling_fn(config, sde, sampling_shape, inverse_scaler, sampling_eps)
+    sampling_fn = sampling.get_sampling_fn(config, sde, sampling_shape, sampling_eps)
 
   num_train_steps = config.training.n_iters
 
@@ -173,7 +170,6 @@ def train(config, workdir):
     # Convert data to JAX arrays and normalize them. Use ._numpy() to avoid copy.
     # batch = torch.from_numpy(next(train_iter)['image']._numpy()).to(config.device).float()
     # batch = batch.permute(0, 3, 1, 2)
-    x_batch = scaler(x_batch)
     # Execute one training step
     loss = train_step_fn(state, x_batch, cond_batch)
     if step % config.training.log_freq == 0:
@@ -195,7 +191,6 @@ def train(config, workdir):
         eval_x_batch = eval_x_batch.to(config.device)
         eval_cond_batch = eval_cond_batch.to(config.device)
         # eval_batch = eval_batch.permute(0, 3, 1, 2)
-        eval_x_batch = scaler(eval_x_batch)
         eval_loss = eval_step_fn(state, eval_x_batch, eval_cond_batch)
 
         # Progress
