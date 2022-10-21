@@ -69,6 +69,22 @@ def plot_to_image(figure):
   image = torchvision.transforms.ToTensor()(image)#.unsqueeze(0)
   return image
 
+def val_loss(config, eval_ds, eval_step_fn, state):
+  val_set_loss = 0.0
+  for eval_cond_batch, eval_x_batch in eval_ds:
+    # eval_cond_batch, eval_x_batch = next(iter(eval_ds))
+    eval_x_batch = eval_x_batch.to(config.device)
+    eval_cond_batch = eval_cond_batch.to(config.device)
+    # eval_batch = eval_batch.permute(0, 3, 1, 2)
+    eval_loss = eval_step_fn(state, eval_x_batch, eval_cond_batch)
+
+    # Progress
+    val_set_loss += eval_loss.item()
+    val_set_loss = val_set_loss/len(eval_ds)
+
+  return val_set_loss
+
+
 @Timer(name="train", text="{name}: {minutes:.1f} minutes", logger=logging.info)
 def train(config, workdir):
   """Runs the training pipeline.
@@ -98,7 +114,7 @@ def train(config, workdir):
   score_model = mutils.create_model(config)
   ema = ExponentialMovingAverage(score_model.parameters(), decay=config.model.ema_rate)
   optimizer = losses.get_optimizer(config, score_model.parameters())
-  state = dict(optimizer=optimizer, model=score_model, ema=ema, step=0)
+  state = dict(optimizer=optimizer, model=score_model, ema=ema, step=0, epoch=0)
 
   # Create checkpoints directory
   checkpoint_dir = os.path.join(workdir, "checkpoints")
@@ -108,7 +124,7 @@ def train(config, workdir):
   os.makedirs(os.path.dirname(checkpoint_meta_dir), exist_ok=True)
   # Resume training when intermediate checkpoints are detected
   state = restore_checkpoint(checkpoint_meta_dir, state, config.device)
-  initial_step = int(state['step'])
+  initial_epoch = int(state['epoch'])
 
   # Create transform saving directory
   transform_dir = os.path.join(workdir, "transforms")
@@ -117,9 +133,6 @@ def train(config, workdir):
   # Build data iterators
   train_ds, _, _ = datasets.get_dataset(config.data.dataset_name, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.training.batch_size, split="train", evaluation=False)
   eval_ds, _, _ = datasets.get_dataset(config.data.dataset_name, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.training.batch_size, split="val", evaluation=False)
-
-  train_iter = iter(train_ds)  # pytype: disable=wrong-arg-types
-  eval_iter = iter(eval_ds)  # pytype: disable=wrong-arg-types
 
   # Setup SDEs
   if config.training.sde.lower() == 'vpsde':
@@ -153,112 +166,97 @@ def train(config, workdir):
                       config.data.image_size, config.data.image_size)
     sampling_fn = sampling.get_sampling_fn(config, sde, sampling_shape, sampling_eps)
 
-  num_train_steps = config.training.n_iters
+  num_train_epochs = config.training.n_epochs
 
   # In case there are multiple hosts (e.g., TPU pods), only log to host 0
-  logging.info("Starting training loop at step %d." % (initial_step,))
+  logging.info("Starting training loop at epoch %d." % (initial_epoch,))
 
-  for step in range(initial_step, num_train_steps + 1):
-    try:
-      cond_batch, x_batch = train_iter.next()
-    except StopIteration:
-      train_iter = iter(train_ds)
-      cond_batch, x_batch = train_iter.next()
+  step = state["step"]
+  for epoch in range(initial_epoch, num_train_epochs + 1):
+    state['epoch'] = epoch
+    for cond_batch, x_batch in train_ds:
 
-    x_batch = x_batch.to(config.device)
-    cond_batch = cond_batch.to(config.device)
-    # Convert data to JAX arrays and normalize them. Use ._numpy() to avoid copy.
-    # batch = torch.from_numpy(next(train_iter)['image']._numpy()).to(config.device).float()
-    # batch = batch.permute(0, 3, 1, 2)
-    # Execute one training step
-    loss = train_step_fn(state, x_batch, cond_batch)
-    if step % config.training.log_freq == 0:
-      logging.info("step: %d, training_loss: %.5e" % (step, loss.item()))
-      writer.add_scalar("training_loss", loss.cpu().detach(), global_step=step)
+      x_batch = x_batch.to(config.device)
+      cond_batch = cond_batch.to(config.device)
+      # Convert data to JAX arrays and normalize them. Use ._numpy() to avoid copy.
+      # batch = torch.from_numpy(next(train_iter)['image']._numpy()).to(config.device).float()
+      # batch = batch.permute(0, 3, 1, 2)
+      # Execute one training step
+      loss = train_step_fn(state, x_batch, cond_batch)
+      if step % config.training.log_freq == 0:
+        logging.info("epoch: %d, step: %d, training_loss: %.5e" % (epoch, step, loss.item()))
+        writer.add_scalar("training_loss", loss.cpu().detach(), global_step=step)
 
-    # Save a temporary checkpoint to resume training after pre-emption periodically
-    if step != 0 and step % config.training.snapshot_freq_for_preemption == 0:
-      save_checkpoint(checkpoint_meta_dir, state)
+      # Report the loss on an evaluation dataset periodically
+      if step % config.training.eval_freq == 0:
+        val_set_loss = val_loss(config, eval_ds, eval_step_fn, state)
+        logging.info("epoch: %d, step: %d, eval_loss: %.5e" % (epoch, step, val_set_loss))
+        writer.add_scalar("eval_loss", val_set_loss, global_step=step)
+      step += 1
+    # Save a temporary checkpoint to resume training after each epoch
+    save_checkpoint(checkpoint_meta_dir, state)
+    # Report the loss on an evaluation dataset each epoch
+    val_set_loss = val_loss(config, eval_ds, eval_step_fn, state)
+    logging.info("epoch: %d, eval_loss: %.5e" % (epoch, val_set_loss))
+    writer.add_scalar("epoch_eval_loss", val_set_loss, global_step=epoch)
 
-    # Report the loss on an evaluation dataset periodically
-    if step % config.training.eval_freq == 0:
-      # eval_batch = torch.from_numpy(next(eval_iter)['image']._numpy()).to(config.device).float()
-      # TODO not quite a easy to repeatedly cycle through a PyTorch DataLoader compared to a TF dataset
-      # eval_batch, _ = next(eval_iter)
-      val_set_loss = 0.0
-      for eval_cond_batch, eval_x_batch in eval_ds:
-        # eval_cond_batch, eval_x_batch = next(iter(eval_ds))
-        eval_x_batch = eval_x_batch.to(config.device)
-        eval_cond_batch = eval_cond_batch.to(config.device)
-        # eval_batch = eval_batch.permute(0, 3, 1, 2)
-        eval_loss = eval_step_fn(state, eval_x_batch, eval_cond_batch)
-
-        # Progress
-        val_set_loss += eval_loss.item()
-        val_set_loss = val_set_loss/len(eval_ds)
-
-      logging.info("step: %d, eval_loss: %.5e" % (step, val_set_loss))
-      writer.add_scalar("eval_loss", val_set_loss, global_step=step)
-
-    # Save a checkpoint periodically and generate samples if needed
-    if step != 0 and step % config.training.snapshot_freq == 0 or step == num_train_steps:
+    if (epoch != 0 and epoch % config.training.snapshot_freq == 0) or epoch == num_train_epochs:
       # Save the checkpoint.
-      save_step = step // config.training.snapshot_freq
-      checkpoint_path = os.path.join(checkpoint_dir, f'checkpoint_{save_step}.pth')
+      checkpoint_path = os.path.join(checkpoint_dir, f'epoch_{epoch}.pth')
       save_checkpoint(checkpoint_path, state)
-      logging.info(f"step: {step}, checkpoint saved to {checkpoint_path}")
+      logging.info(f"epoch: {epoch}, checkpoint saved to {checkpoint_path}")
 
-      # Generate and save samples
-      if config.training.snapshot_sampling:
-        logging.info(f"step: {step}, sampling...")
-        ema.store(score_model.parameters())
-        ema.copy_to(score_model.parameters())
+    # Generate and save samples
+    if config.training.snapshot_sampling:
+      logging.info(f"step: {epoch}, sampling...")
+      ema.store(score_model.parameters())
+      ema.copy_to(score_model.parameters())
 
-        eval_cond_batch, eval_x_batch = next(iter(eval_ds))
-        eval_cond_batch = eval_cond_batch.to(config.device)
+      eval_cond_batch, eval_x_batch = next(iter(eval_ds))
+      eval_cond_batch = eval_cond_batch.to(config.device)
 
-        sample, n = sampling_fn(score_model, eval_cond_batch)
-        ema.restore(score_model.parameters())
-        this_sample_dir = os.path.join(sample_dir, "iter_{}".format(step))
-        os.makedirs(this_sample_dir, exist_ok=True)
-        nrow = math.ceil(np.sqrt(sample.shape[0]))
+      sample, n = sampling_fn(score_model, eval_cond_batch)
+      ema.restore(score_model.parameters())
+      this_sample_dir = os.path.join(sample_dir, "iter_{}".format(step))
+      os.makedirs(this_sample_dir, exist_ok=True)
+      nrow = math.ceil(np.sqrt(sample.shape[0]))
 
-        xr_data = train_ds.dataset.ds
-        coords = {"sample_id": np.arange(sample.shape[0]), "grid_longitude": xr_data.coords["grid_longitude"], "grid_latitude": xr_data.coords["grid_latitude"]}
-        dims=["sample_id", "grid_latitude", "grid_longitude"]
-        ds = xr.Dataset(data_vars={key: xr_data.data_vars[key] for key in ["grid_latitude_bnds", "grid_longitude_bnds", "rotated_latitude_longitude"]}, coords=coords, attrs={})
-        ds['pred_pr'] = xr.DataArray(sample.cpu()[:,0].squeeze(1), dims=dims)
-        ds['target_pr'] = xr.DataArray(eval_x_batch.cpu()[:,0].squeeze(1), dims=dims)
+      xr_data = train_ds.dataset.ds
+      coords = {"sample_id": np.arange(sample.shape[0]), "grid_longitude": xr_data.coords["grid_longitude"], "grid_latitude": xr_data.coords["grid_latitude"]}
+      dims=["sample_id", "grid_latitude", "grid_longitude"]
+      ds = xr.Dataset(data_vars={key: xr_data.data_vars[key] for key in ["grid_latitude_bnds", "grid_longitude_bnds", "rotated_latitude_longitude"]}, coords=coords, attrs={})
+      ds['pred_pr'] = xr.DataArray(sample.cpu()[:,0].squeeze(1), dims=dims)
+      ds['target_pr'] = xr.DataArray(eval_x_batch.cpu()[:,0].squeeze(1), dims=dims)
 
-        fig, axes = plt.subplots(nrow*2, nrow, figsize=(24,24), subplot_kw={'projection': cp_model_rotated_pole})
-        if nrow == 1:
-          axes = [axes]
-        for isample in range(sample.shape[0]):
-            ax = axes[(isample // nrow)*2][isample % nrow]
-            ax.coastlines()
-            ds["pred_pr"].isel(sample_id=isample).plot(ax=ax)
-            ax.set_title("Cond generated pr")
+      fig, axes = plt.subplots(nrow*2, nrow, figsize=(24,24), subplot_kw={'projection': cp_model_rotated_pole})
+      if nrow == 1:
+        axes = [axes]
+      for isample in range(sample.shape[0]):
+          ax = axes[(isample // nrow)*2][isample % nrow]
+          ax.coastlines()
+          ds["pred_pr"].isel(sample_id=isample).plot(ax=ax)
+          ax.set_title("Cond generated pr")
 
-            ax = axes[(isample // nrow)*2+1][isample % nrow]
-            ax.coastlines()
-            ds["target_pr"].isel(sample_id=isample).plot(ax=ax)
-            ax.set_title("Target pr")
+          ax = axes[(isample // nrow)*2+1][isample % nrow]
+          ax.coastlines()
+          ds["target_pr"].isel(sample_id=isample).plot(ax=ax)
+          ax.set_title("Target pr")
 
-        with open(os.path.join(this_sample_dir, f"sample.png"), "wb") as fout:
-          plt.savefig(fout)
+      with open(os.path.join(this_sample_dir, f"sample.png"), "wb") as fout:
+        plt.savefig(fout)
 
-        with open(os.path.join(this_sample_dir, "sample.np"), "wb") as fout:
-          np.save(fout, sample.cpu().numpy())
+      with open(os.path.join(this_sample_dir, "sample.np"), "wb") as fout:
+        np.save(fout, sample.cpu().numpy())
 
-        # writer.add_image("samples", plot_to_image(fig).numpy(), step)
+      # writer.add_image("samples", plot_to_image(fig).numpy(), step)
 
-        # with writer.as_default():
-        writer.add_image('samples', plot_to_image(fig), global_step=step)
-          # tf.summary.image("samples", plot_to_image(fig), step=step)
+      # with writer.as_default():
+      writer.add_image('samples', plot_to_image(fig), global_step=step)
+        # tf.summary.image("samples", plot_to_image(fig), step=step)
 
-        # image_grid = make_grid(sample, nrow, padding=2)
-        # with tf.io.gfile.GFile(os.path.join(this_sample_dir, "sample.png"), "wb") as fout:
-        #   save_image(image_grid, fout)
+      # image_grid = make_grid(sample, nrow, padding=2)
+      # with tf.io.gfile.GFile(os.path.join(this_sample_dir, "sample.png"), "wb") as fout:
+      #   save_image(image_grid, fout)
 
   writer.flush()
   writer.close()
