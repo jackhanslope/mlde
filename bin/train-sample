@@ -8,7 +8,7 @@ cpm_dataset=$2
 gcm_dataset=$3
 shift 3
 # Add any other config on the commandline for training
-# --config.model.map_features=8 --config.data.num_conditioning_channels=11
+# --config.model.map_features=8
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
