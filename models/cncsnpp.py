@@ -138,8 +138,8 @@ class cNCSNpp(nn.Module):
       raise ValueError(f'resblock type {resblock_type} unrecognized.')
 
     # Downsampling block
-
-    channels = sum(map(len, utils.get_variables(config))) + config.model.map_features
+    cond_channels, output_channels = list(map(len, utils.get_variables(config)))
+    channels = cond_channels + output_channels + config.model.map_features
     if progressive_input != 'none':
       input_pyramid_ch = channels
 
@@ -232,7 +232,7 @@ class cNCSNpp(nn.Module):
       modules.append(conv3x3(in_ch, channels, init_scale=init_scale))
 
 
-    modules.append(conv3x3(channels, config.data.num_channels, init_scale=init_scale))
+    modules.append(conv3x3(channels, output_channels, init_scale=init_scale))
 
     self.all_modules = nn.ModuleList(modules)
 

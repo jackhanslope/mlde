@@ -41,7 +41,7 @@ class ScoreNet(nn.Module):
     self.config = config
     marginal_prob_std=None
     cond_channels, output_channels = list(map(len, utils.get_variables(config)))
-    input_channels= output_channels + cond_channels + config.model.map_features
+    input_channels = output_channels + cond_channels + config.model.map_features
     channels=[32, 64, 128, 256]
     embed_dim=256
 
