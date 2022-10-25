@@ -68,7 +68,7 @@ def get_transform(config, transform_dir, evaluation=False):
     else:
       if evaluation and config.data.input_transform == "shared":
         raise RuntimeError("Shared input transform should only be fitted during training")
-      logging.info("Fitting input transform")
+      logging.info(f"Fitting input transform {config.data.input_transform_key}")
       data_dirpath = os.path.join(os.getenv('DERIVED_DATA'), 'moose', 'nc-datasets', config.data.dataset_name)
       xr_data_train = xr.load_dataset(os.path.join(data_dirpath, 'train.nc'))
       input_transform = build_input_transform(variables, config.data.image_size, key=config.data.input_transform_key)
@@ -84,7 +84,7 @@ def get_transform(config, transform_dir, evaluation=False):
     else:
       if evaluation and config.data.target_transform == "shared":
         raise RuntimeError("Shared target transform should only be fitted during training")
-      logging.info("Fitting target transform")
+      logging.info(f"Fitting target transform {config.data.target_transform_key}")
       data_dirpath = os.path.join(os.getenv('DERIVED_DATA'), 'moose', 'nc-datasets', config.data.dataset_name)
       xr_data_train = xr.load_dataset(os.path.join(data_dirpath, 'train.nc'))
       target_transform = build_target_transform(target_variables, key=config.data.target_transform_key)
