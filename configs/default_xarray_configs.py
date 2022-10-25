@@ -47,6 +47,8 @@ def get_default_configs():
   data.uniform_dequantization = False
   data.input_transform = "per-ds"
   data.target_transform = "shared"
+  data.input_transform_key = "v1"
+  data.target_transform_key = "v1"
 
   # model
   config.model = model = ml_collections.ConfigDict()

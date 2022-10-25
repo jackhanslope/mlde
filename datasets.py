@@ -71,7 +71,7 @@ def get_transform(config, transform_dir, evaluation=False):
       logging.info("Fitting input transform")
       data_dirpath = os.path.join(os.getenv('DERIVED_DATA'), 'moose', 'nc-datasets', config.data.dataset_name)
       xr_data_train = xr.load_dataset(os.path.join(data_dirpath, 'train.nc'))
-      input_transform = build_input_transform(variables, config.data.image_size)
+      input_transform = build_input_transform(variables, config.data.image_size, key=config.data.input_transform_key)
       input_transform.fit_transform(xr_data_train)
       with open(input_transform_path, 'wb') as f:
         # Pickle the 'data' dictionary using the highest protocol available.
@@ -87,7 +87,7 @@ def get_transform(config, transform_dir, evaluation=False):
       logging.info("Fitting target transform")
       data_dirpath = os.path.join(os.getenv('DERIVED_DATA'), 'moose', 'nc-datasets', config.data.dataset_name)
       xr_data_train = xr.load_dataset(os.path.join(data_dirpath, 'train.nc'))
-      target_transform = build_target_transform(target_variables)
+      target_transform = build_target_transform(target_variables, key=config.data.target_transform_key)
       target_transform.fit_transform(xr_data_train)
       with open(target_transform_path, 'wb') as f:
         # Pickle the 'data' dictionary using the highest protocol available.
