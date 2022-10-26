@@ -9,7 +9,7 @@ shift 2
 # Add any other config on the commandline for training
 # --config.data.input_transform_key=spatial
 
-training_duration=15
+training_duration=36
 
 set -x
 
