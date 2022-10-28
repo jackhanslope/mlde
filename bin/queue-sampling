@@ -8,7 +8,7 @@ samples_per_job=1
 sampling_duration=$((18*samples_per_job))
 
 model_run_id=$1
-checkpoint_id=20
+checkpoint_id=4
 cpm_dataset=$2
 gcm_dataset=$3
 if [ ! -z "${4:-}" ]; then
