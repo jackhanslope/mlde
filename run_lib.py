@@ -115,9 +115,9 @@ def train(config, workdir):
   os.makedirs(transform_dir, exist_ok=True)
 
   # Build data iterators
-  train_ds, eval_ds, _, _ = datasets.get_dataset(config,
-                                              transform_dir,
-                                              uniform_dequantization=config.data.uniform_dequantization)
+  train_ds, _, _ = datasets.get_dataset(config, config.data.dataset_name, config.data.dataset_name, transform_dir, batch_size=config.training.batch_size,  split="train", evaluation=False)
+  eval_ds, _, _ = datasets.get_dataset(config, config.data.dataset_name, config.data.dataset_name, transform_dir, batch_size=config.training.batch_size,  split="val", evaluation=False)
+
   train_iter = iter(train_ds)  # pytype: disable=wrong-arg-types
   eval_iter = iter(eval_ds)  # pytype: disable=wrong-arg-types
 
