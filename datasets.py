@@ -14,7 +14,7 @@
 # limitations under the License.
 
 # pylint: skip-file
-"""Return training and evaluation/test datasets from config files."""
+"""Return data loaders with pipelines used to transform the data."""
 from datetime import timedelta
 import logging
 import os
@@ -27,8 +27,8 @@ import xarray as xr
 
 from ml_downscaling_emulator.training.dataset import build_input_transform, build_target_transform, XRDataset
 
-def get_variables(config):
-  data_dirpath = os.path.join(os.getenv('DERIVED_DATA'), 'moose', 'nc-datasets', config.data.dataset_name)
+def get_variables(dataset_name):
+  data_dirpath = os.path.join(os.getenv('DERIVED_DATA'), 'moose', 'nc-datasets', dataset_name)
   with open(os.path.join(data_dirpath, 'ds-config.yml'), 'r') as f:
       ds_config = yaml.safe_load(f)
 
@@ -37,102 +37,88 @@ def get_variables(config):
 
   return variables, target_variables
 
-def get_transform(config, transform_dir, evaluation=False):
-  dataset_transform_dir = os.path.join(transform_dir, config.data.dataset_name)
+def create_transform(variables, active_dataset_name, model_src_dataset_name, transform_key, builder, store_path):
+  logging.info(f"Fitting transform")
+  model_src_dataset_dirpath = os.path.join(os.getenv('DERIVED_DATA'), 'moose', 'nc-datasets', model_src_dataset_name)
+  model_src_training_split = xr.load_dataset(os.path.join(model_src_dataset_dirpath, 'train.nc'))
+
+  active_dataset_dirpath = os.path.join(os.getenv('DERIVED_DATA'), 'moose', 'nc-datasets', active_dataset_name)
+  active_dataset_training_split = xr.load_dataset(os.path.join(active_dataset_dirpath, 'train.nc'))
+
+  xfm = builder(variables, key=transform_key)
+
+  xfm.fit(active_dataset_training_split, model_src_training_split)
+
+  save_transform(xfm, store_path)
+
+  return xfm
+
+def save_transform(xfm, path):
+  with open(path, 'wb') as f:
+        logging.info(f"Storing transform: {path}")
+        pickle.dump(xfm, f, pickle.HIGHEST_PROTOCOL)
+
+def load_transform(path):
+  with open(path, 'rb') as f:
+    logging.info(f"Using stored transform: {path}")
+    xfm = pickle.load(f)
+
+  return xfm
+
+def find_or_create_transforms(active_dataset_name, model_src_dataset_name, transform_dir, input_transform_key, target_transform_key, evaluation):
+  dataset_transform_dir = os.path.join(transform_dir, active_dataset_name)
   os.makedirs(dataset_transform_dir, exist_ok=True)
+  input_transform_path = os.path.join(dataset_transform_dir, 'input.pickle')
+  target_transform_path = os.path.join(transform_dir, 'target.pickle')
 
-  variables, target_variables = get_variables(config)
-
-  if config.data.input_transform == "shared":
-    input_transform_path = os.path.join(transform_dir, 'input.pickle')
-  elif config.data.input_transform == "per-ds":
-    input_transform_path = os.path.join(dataset_transform_dir, 'input.pickle')
-  else:
-    raise RuntimeError(f"Unknown tranform sharing {config.data.input_transform}")
-
-  if config.data.target_transform == "shared":
-    target_transform_path = os.path.join(transform_dir, 'target.pickle')
-  elif config.data.target_transform == "per-ds":
-    target_transform_path = os.path.join(dataset_transform_dir, 'target.pickle')
-  else:
-    raise RuntimeError(f"Unknown tranform sharing {config.data.target_transform}")
-
+  variables, target_variables = get_variables(model_src_dataset_name)
 
   lock_path = os.path.join(transform_dir, '.lock')
   lock = Lock(lock_path, lifetime=timedelta(hours=1))
   with lock:
     if os.path.exists(input_transform_path):
-      with open(input_transform_path, 'rb') as f:
-        logging.info(f"Using stored input transform: {input_transform_path}")
-        input_transform = pickle.load(f)
+      input_transform = load_transform(input_transform_path)
     else:
-      if evaluation and config.data.input_transform == "shared":
-        raise RuntimeError("Shared input transform should only be fitted during training")
-      logging.info(f"Fitting input transform {config.data.input_transform_key}")
-      data_dirpath = os.path.join(os.getenv('DERIVED_DATA'), 'moose', 'nc-datasets', config.data.dataset_name)
-      xr_data_train = xr.load_dataset(os.path.join(data_dirpath, 'train.nc'))
-      input_transform = build_input_transform(variables, config.data.image_size, key=config.data.input_transform_key)
-      input_transform.fit_transform(xr_data_train)
-      with open(input_transform_path, 'wb') as f:
-        # Pickle the 'data' dictionary using the highest protocol available.
-        logging.info(f"Storing input transform: {input_transform_path}")
-        pickle.dump(input_transform, f, pickle.HIGHEST_PROTOCOL)
+
+      input_transform = create_transform(variables, active_dataset_name, model_src_dataset_name, input_transform_key, build_input_transform, input_transform_path)
+
     if os.path.exists(target_transform_path):
-      with open(target_transform_path, 'rb') as f:
-        logging.info(f"Using stored target transform: {target_transform_path}")
-        target_transform = pickle.load(f)
+      target_transform = load_transform(target_transform_path)
     else:
-      if evaluation and config.data.target_transform == "shared":
-        raise RuntimeError("Shared target transform should only be fitted during training")
-      logging.info(f"Fitting target transform {config.data.target_transform_key}")
-      data_dirpath = os.path.join(os.getenv('DERIVED_DATA'), 'moose', 'nc-datasets', config.data.dataset_name)
-      xr_data_train = xr.load_dataset(os.path.join(data_dirpath, 'train.nc'))
-      target_transform = build_target_transform(target_variables, key=config.data.target_transform_key)
-      target_transform.fit_transform(xr_data_train)
-      with open(target_transform_path, 'wb') as f:
-        # Pickle the 'data' dictionary using the highest protocol available.
-        logging.info(f"Storing target transform: {target_transform_path}")
-        pickle.dump(target_transform, f, pickle.HIGHEST_PROTOCOL)
+      if evaluation:
+        raise RuntimeError("Target transform should only be fitted during training")
+      target_transform = create_transform(target_variables, active_dataset_name, model_src_dataset_name, target_transform_key, build_target_transform, target_transform_path)
 
   return input_transform, target_transform
 
 
-def get_dataset(config, transform_dir, uniform_dequantization=False, evaluation=False, split='val'):
-  """Create data loaders for training and evaluation.
+def get_dataset(config, active_dataset_name, model_src_dataset_name, transform_dir, batch_size, split, evaluation=False):
+  """Create data loaders for given split.
 
   Args:
-    config: A ml_collection.ConfigDict parsed from config files.
-    uniform_dequantization: If `True`, add uniform dequantization to images.
+    active_dataset_name: Name of dataset from which to load data splits
+    model_src_dataset_name: Name of dataset used to train the diffusion model (may be the same)
+    transform_dir: Path to where transforms should be stored
+    batch_size: Size of batch to use for DataLoaders
     evaluation: If `True`, fix number of epochs to 1.
+    split: Split of the active dataset to load
 
   Returns:
-    train_ds, eval_ds, dataset_builder.
+    data_loader, transform, target_transform.
   """
-  # Compute batch size for this worker.
-  batch_size = config.training.batch_size if not evaluation else config.eval.batch_size
+  input_transform_key = config.data.input_transform_key
+  target_transform_key = config.data.target_transform_key
 
-  # Create dataset builders for each dataset.
-  if config.data.dataset == "XR":
-    variables, target_variables = get_variables(config)
+  transform, target_transform = find_or_create_transforms(active_dataset_name, model_src_dataset_name, transform_dir, input_transform_key, target_transform_key, evaluation)
 
-    transform, target_transform = get_transform(config, transform_dir, evaluation=evaluation)
+  data_dirpath = os.path.join(os.getenv('DERIVED_DATA'), 'moose', 'nc-datasets',active_dataset_name)
+  xr_data = xr.load_dataset(os.path.join(data_dirpath, f'{split}.nc'))
 
-    data_dirpath = os.path.join(os.getenv('DERIVED_DATA'), 'moose', 'nc-datasets', config.data.dataset_name)
-    xr_data_train = xr.load_dataset(os.path.join(data_dirpath, 'train.nc'))
-    xr_data_eval = xr.load_dataset(os.path.join(data_dirpath, f'{split}.nc'))
+  variables, target_variables = get_variables(model_src_dataset_name)
 
-    xr_data_train = transform.transform(xr_data_train)
-    xr_data_train = target_transform.transform(xr_data_train)
-    train_dataset = XRDataset(xr_data_train, variables)
-    train_data_loader = DataLoader(train_dataset, batch_size=batch_size)
+  xr_data = transform.transform(xr_data)
+  xr_data = target_transform.transform(xr_data)
+  xr_dataset = XRDataset(xr_data, variables, target_variables)
+  data_loader = DataLoader(xr_dataset, batch_size=batch_size)
 
-    xr_data_eval = transform.transform(xr_data_eval)
-    xr_data_eval = target_transform.transform(xr_data_eval)
-    eval_dataset = XRDataset(xr_data_eval, variables)
-    eval_data_loader = DataLoader(eval_dataset, batch_size=batch_size)
-
-    return train_data_loader, eval_data_loader, transform, target_transform
-
-  else:
-    raise NotImplementedError(
-      f'Dataset {config.data.dataset} not yet supported.')
+  return data_loader, transform, target_transform
