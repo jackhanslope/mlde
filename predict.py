@@ -152,7 +152,7 @@ def main(workdir: Path, dataset: str = typer.Option(...), dataset_split: str = "
     transform_dir = os.path.join(workdir, "transforms")
 
     # Data
-    eval_dl, _, target_transform = datasets.get_dataset(config, dataset, config.data.dataset_name, transform_dir, batch_size=config.eval.batch_size,  split=dataset_split, evaluation=True)
+    eval_dl, _, target_transform = datasets.get_dataset(dataset, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.eval.batch_size,  split=dataset_split, evaluation=True)
 
     xr_data_eval = eval_dl.dataset.ds
 
