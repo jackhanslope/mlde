@@ -90,13 +90,15 @@ def find_or_create_transforms(active_dataset_name, model_src_dataset_name, trans
   return input_transform, target_transform
 
 
-def get_dataset(config, active_dataset_name, model_src_dataset_name, transform_dir, batch_size, split, evaluation=False):
+def get_dataset(active_dataset_name, model_src_dataset_name, input_transform_key, target_transform_key, transform_dir, batch_size, split, evaluation=False):
   """Create data loaders for given split.
 
   Args:
     active_dataset_name: Name of dataset from which to load data splits
     model_src_dataset_name: Name of dataset used to train the diffusion model (may be the same)
     transform_dir: Path to where transforms should be stored
+    input_transform_key: Name of input transform pipeline to use
+    target_transform_key: Name of target transform pipeline to use
     batch_size: Size of batch to use for DataLoaders
     evaluation: If `True`, fix number of epochs to 1.
     split: Split of the active dataset to load
@@ -104,8 +106,6 @@ def get_dataset(config, active_dataset_name, model_src_dataset_name, transform_d
   Returns:
     data_loader, transform, target_transform.
   """
-  input_transform_key = config.data.input_transform_key
-  target_transform_key = config.data.target_transform_key
 
   transform, target_transform = find_or_create_transforms(active_dataset_name, model_src_dataset_name, transform_dir, input_transform_key, target_transform_key, evaluation)
 
