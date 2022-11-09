@@ -33,7 +33,6 @@ def get_config():
 
   # data
   data = config.data
-  data.image_size = 28 # u-net architechture currently designed to work with 28x28 images
 
   # model
   model = config.model

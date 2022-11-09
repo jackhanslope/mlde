@@ -62,8 +62,4 @@ def get_config():
   model.fourier_scale = 16
   model.conv_size = 3
 
-  # data
-  data = config.data
-  data.image_size = 28 # u-net architechture currently designed to work with 28x28 images
-
   return config
