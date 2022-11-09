@@ -61,8 +61,8 @@ def get_sigmas(config):
 
   return sigmas
 
-def get_variables(config):
-  data_dirpath = os.path.join(os.getenv('DERIVED_DATA'), 'moose', 'nc-datasets', config.data.dataset_name)
+def get_variables(dataset_name):
+  data_dirpath = os.path.join(os.getenv('DERIVED_DATA'), 'moose', 'nc-datasets', dataset_name)
   with open(os.path.join(data_dirpath, 'ds-config.yml'), 'r') as f:
       ds_config = yaml.safe_load(f)
 
