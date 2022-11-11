@@ -127,7 +127,7 @@ def load_config(config_path):
     # return module.get_config()
     import yaml
     from ml_collections import config_dict
-
+    logger.info(f"Loading config from {config_path}")
     with open(config_path) as f:
         config = config_dict.ConfigDict(yaml.unsafe_load(f))
 
@@ -136,17 +136,17 @@ def load_config(config_path):
 @app.command()
 @Timer(name="sample", text="{name}: {minutes:.1f} minutes", logger=logger.info)
 @slack_sender(webhook_url=os.getenv("KK_SLACK_WH_URL"), channel="general")
-def main(workdir: Path, dataset: str = typer.Option(...), dataset_split: str = "val", sde: SDEOption = SDEOption.subVPSDE, checkpoint_id: int = typer.Option(...), batch_size: int = None, num_samples: int = 3):
+def main(workdir: Path, dataset: str = typer.Option(...), dataset_split: str = "val", sde: SDEOption = SDEOption.subVPSDE, epoch: int = typer.Option(...), batch_size: int = None, num_samples: int = 3):
     config_path = os.path.join(workdir, "config.yml")
     config = load_config(config_path)
     if batch_size is not None:
         config.eval.batch_size = batch_size
 
-    output_dirpath = workdir/"samples"/f"checkpoint-{checkpoint_id}"/dataset/dataset_split
+    output_dirpath = workdir/"samples"/f"epoch-{epoch}"/dataset/dataset_split
     os.makedirs(output_dirpath, exist_ok=True)
 
-    ckpt_filename = os.path.join(workdir, "checkpoints", f"checkpoint_{checkpoint_id}.pth")
-
+    ckpt_filename = os.path.join(workdir, "checkpoints", f"epoch_{epoch}.pth")
+    logger.info(f"Loading model from {ckpt_filename}")
     score_model, sampling_fn = load_model(config, sde, ckpt_filename)
 
     transform_dir = os.path.join(workdir, "transforms")
