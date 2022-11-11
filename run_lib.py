@@ -30,9 +30,7 @@ import numpy as np
 import logging
 # Keep the import below for registering all model definitions
 # from models import ddpm, ncsnv2, ncsnpp
-from models import unet
 from models import cunet
-from models import ncsnpp
 from models import cncsnpp
 import losses
 import sampling
