@@ -68,10 +68,10 @@ def get_transform(config, transform_dir, evaluation=False):
     else:
       if evaluation and config.data.input_transform == "shared":
         raise RuntimeError("Shared input transform should only be fitted during training")
-      logging.info("Fitting input transform")
+      logging.info(f"Fitting input transform {config.data.input_transform_key}")
       data_dirpath = os.path.join(os.getenv('DERIVED_DATA'), 'moose', 'nc-datasets', config.data.dataset_name)
       xr_data_train = xr.load_dataset(os.path.join(data_dirpath, 'train.nc'))
-      input_transform = build_input_transform(variables, config.data.image_size)
+      input_transform = build_input_transform(variables, config.data.image_size, key=config.data.input_transform_key)
       input_transform.fit_transform(xr_data_train)
       with open(input_transform_path, 'wb') as f:
         # Pickle the 'data' dictionary using the highest protocol available.
@@ -84,10 +84,10 @@ def get_transform(config, transform_dir, evaluation=False):
     else:
       if evaluation and config.data.target_transform == "shared":
         raise RuntimeError("Shared target transform should only be fitted during training")
-      logging.info("Fitting target transform")
+      logging.info(f"Fitting target transform {config.data.target_transform_key}")
       data_dirpath = os.path.join(os.getenv('DERIVED_DATA'), 'moose', 'nc-datasets', config.data.dataset_name)
       xr_data_train = xr.load_dataset(os.path.join(data_dirpath, 'train.nc'))
-      target_transform = build_target_transform(target_variables)
+      target_transform = build_target_transform(target_variables, key=config.data.target_transform_key)
       target_transform.fit_transform(xr_data_train)
       with open(target_transform_path, 'wb') as f:
         # Pickle the 'data' dictionary using the highest protocol available.
@@ -95,23 +95,6 @@ def get_transform(config, transform_dir, evaluation=False):
         pickle.dump(target_transform, f, pickle.HIGHEST_PROTOCOL)
 
   return input_transform, target_transform
-
-def get_data_scaler(config):
-  """Data normalizer. Assume data are always in [0, 1]."""
-  if config.data.centered:
-    # Rescale to [-1, 1]
-    return lambda x: x * 2. - 1.
-  else:
-    return lambda x: x
-
-
-def get_data_inverse_scaler(config):
-  """Inverse data normalizer."""
-  if config.data.centered:
-    # Rescale [-1, 1] to [0, 1]
-    return lambda x: (x + 1.) / 2.
-  else:
-    return lambda x: x
 
 
 def get_dataset(config, transform_dir, uniform_dequantization=False, evaluation=False, split='val'):

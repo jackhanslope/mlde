@@ -73,8 +73,6 @@ def load_model(config, sde, ckpt_filename):
     random_seed = 0 #@param {"type": "integer"}
 
     sigmas = mutils.get_sigmas(config)
-    scaler = datasets.get_data_scaler(config)
-    inverse_scaler = datasets.get_data_inverse_scaler(config)
     score_model = mutils.create_model(config)
 
     optimizer = get_optimizer(config, score_model.parameters())
@@ -90,7 +88,7 @@ def load_model(config, sde, ckpt_filename):
     num_output_channels = len(datasets.get_variables(config)[1])
     sampling_shape = (config.eval.batch_size, num_output_channels,
                           config.data.image_size, config.data.image_size)
-    sampling_fn = sampling.get_sampling_fn(config, sde, sampling_shape, inverse_scaler, sampling_eps)
+    sampling_fn = sampling.get_sampling_fn(config, sde, sampling_shape, sampling_eps)
 
     return score_model, sampling_fn
 
