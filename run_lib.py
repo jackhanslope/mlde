@@ -115,9 +115,9 @@ def train(config, workdir):
   os.makedirs(transform_dir, exist_ok=True)
 
   # Build data iterators
-  train_ds, eval_ds, _, _ = datasets.get_dataset(config,
-                                              transform_dir,
-                                              uniform_dequantization=config.data.uniform_dequantization)
+  train_ds, _, _ = datasets.get_dataset(config.data.dataset_name, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.training.batch_size, split="train", evaluation=False)
+  eval_ds, _, _ = datasets.get_dataset(config.data.dataset_name, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.training.batch_size, split="val", evaluation=False)
+
   train_iter = iter(train_ds)  # pytype: disable=wrong-arg-types
   eval_iter = iter(eval_ds)  # pytype: disable=wrong-arg-types
 
@@ -148,7 +148,7 @@ def train(config, workdir):
 
   # Building sampling functions
   if config.training.snapshot_sampling:
-    num_output_channels = len(datasets.get_variables(config)[1])
+    num_output_channels = len(datasets.get_variables(config.data.dataset_name)[1])
     sampling_shape = (config.training.batch_size, num_output_channels,
                       config.data.image_size, config.data.image_size)
     sampling_fn = sampling.get_sampling_fn(config, sde, sampling_shape, sampling_eps)

@@ -138,7 +138,7 @@ class cNCSNpp(nn.Module):
       raise ValueError(f'resblock type {resblock_type} unrecognized.')
 
     # Downsampling block
-    cond_channels, output_channels = list(map(len, utils.get_variables(config)))
+    cond_channels, output_channels = list(map(len, utils.get_variables(config.data.dataset_name)))
     channels = cond_channels + output_channels + config.model.map_features
     if progressive_input != 'none':
       input_pyramid_ch = channels

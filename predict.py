@@ -85,7 +85,7 @@ def load_model(config, sde, ckpt_filename):
     ema.copy_to(score_model.parameters())
 
     # Sampling
-    num_output_channels = len(datasets.get_variables(config)[1])
+    num_output_channels = len(datasets.get_variables(config.data.dataset_name)[1])
     sampling_shape = (config.eval.batch_size, num_output_channels,
                           config.data.image_size, config.data.image_size)
     sampling_fn = sampling.get_sampling_fn(config, sde, sampling_shape, sampling_eps)
@@ -139,7 +139,6 @@ def load_config(config_path):
 def main(workdir: Path, dataset: str = typer.Option(...), dataset_split: str = "val", sde: SDEOption = SDEOption.subVPSDE, checkpoint_id: int = typer.Option(...), batch_size: int = None, num_samples: int = 3):
     config_path = os.path.join(workdir, "config.yml")
     config = load_config(config_path)
-    config.data.dataset_name = dataset
     if batch_size is not None:
         config.eval.batch_size = batch_size
 
@@ -153,9 +152,8 @@ def main(workdir: Path, dataset: str = typer.Option(...), dataset_split: str = "
     transform_dir = os.path.join(workdir, "transforms")
 
     # Data
-    train_dl, eval_dl, _, target_transform = datasets.get_dataset(config, transform_dir, evaluation=True, split=dataset_split)
+    eval_dl, _, target_transform = datasets.get_dataset(dataset, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.eval.batch_size,  split=dataset_split, evaluation=True)
 
-    xr_data_train = train_dl.dataset.ds
     xr_data_eval = eval_dl.dataset.ds
 
     for sample_id in range(num_samples):
