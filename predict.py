@@ -46,9 +46,8 @@ from sde_lib import VESDE, VPSDE, subVPSDE
 #                       NoneCorrector,
 #                       NonePredictor,
 #                       AnnealedLangevinDynamics)
-import datasets
 
-from ml_downscaling_emulator.training.dataset import get_variables
+from ml_downscaling_emulator.training.dataset import get_variables, get_dataset
 
 import logging
 logger = logging.getLogger()
@@ -154,7 +153,7 @@ def main(workdir: Path, dataset: str = typer.Option(...), dataset_split: str = "
     transform_dir = os.path.join(workdir, "transforms")
 
     # Data
-    eval_dl, _, target_transform = datasets.get_dataset(dataset, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.eval.batch_size,  split=dataset_split, evaluation=True)
+    eval_dl, _, target_transform = get_dataset(dataset, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.eval.batch_size,  split=dataset_split, evaluation=True)
 
     xr_data_eval = eval_dl.dataset.ds
 

@@ -38,7 +38,6 @@ import losses
 import sampling
 from models import utils as mutils
 from models.ema import ExponentialMovingAverage
-import datasets
 # import evaluation
 import likelihood
 import sde_lib
@@ -50,7 +49,7 @@ from torchvision.utils import make_grid, save_image
 from utils import save_checkpoint, restore_checkpoint
 
 from ml_downscaling_emulator.utils import cp_model_rotated_pole
-from ml_downscaling_emulator.training.dataset import get_variables
+from ml_downscaling_emulator.training.dataset import get_variables, get_dataset
 import matplotlib.pyplot as plt
 import xarray as xr
 
@@ -132,8 +131,8 @@ def train(config, workdir):
   os.makedirs(transform_dir, exist_ok=True)
 
   # Build data iterators
-  train_ds, _, _ = datasets.get_dataset(config.data.dataset_name, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.training.batch_size, split="train", evaluation=False)
-  eval_ds, _, _ = datasets.get_dataset(config.data.dataset_name, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.training.batch_size, split="val", evaluation=False)
+  train_ds, _, _ = get_dataset(config.data.dataset_name, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.training.batch_size, split="train", evaluation=False)
+  eval_ds, _, _ = get_dataset(config.data.dataset_name, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.training.batch_size, split="val", evaluation=False)
 
   # Setup SDEs
   if config.training.sde.lower() == 'vpsde':
