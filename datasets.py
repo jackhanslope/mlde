@@ -14,183 +14,109 @@
 # limitations under the License.
 
 # pylint: skip-file
-"""Return training and evaluation/test datasets from config files."""
-import jax
-import tensorflow as tf
-import tensorflow_datasets as tfds
+"""Return data loaders with pipelines used to transform the data."""
+from datetime import timedelta
+import logging
+import os
+import pickle
+import yaml
+
+from flufl.lock import Lock
+from torch.utils.data import DataLoader
+import xarray as xr
+
+from ml_downscaling_emulator.training.dataset import build_input_transform, build_target_transform, XRDataset
+
+from models import utils as mutils
+
+def get_variables(dataset_name):
+  # ideally this would be defined here
+  # but code layout means can't import datasets model from the models package!
+  # so proxying to mutils here
+  return mutils.get_variables(dataset_name)
+
+def create_transform(variables, active_dataset_name, model_src_dataset_name, transform_key, builder, store_path):
+  logging.info(f"Fitting transform")
+  model_src_dataset_dirpath = os.path.join(os.getenv('DERIVED_DATA'), 'moose', 'nc-datasets', model_src_dataset_name)
+  model_src_training_split = xr.load_dataset(os.path.join(model_src_dataset_dirpath, 'train.nc'))
+
+  active_dataset_dirpath = os.path.join(os.getenv('DERIVED_DATA'), 'moose', 'nc-datasets', active_dataset_name)
+  active_dataset_training_split = xr.load_dataset(os.path.join(active_dataset_dirpath, 'train.nc'))
+
+  xfm = builder(variables, key=transform_key)
+
+  xfm.fit(active_dataset_training_split, model_src_training_split)
+
+  save_transform(xfm, store_path)
+
+  return xfm
+
+def save_transform(xfm, path):
+  with open(path, 'wb') as f:
+        logging.info(f"Storing transform: {path}")
+        pickle.dump(xfm, f, pickle.HIGHEST_PROTOCOL)
+
+def load_transform(path):
+  with open(path, 'rb') as f:
+    logging.info(f"Using stored transform: {path}")
+    xfm = pickle.load(f)
+
+  return xfm
+
+def find_or_create_transforms(active_dataset_name, model_src_dataset_name, transform_dir, input_transform_key, target_transform_key, evaluation):
+  dataset_transform_dir = os.path.join(transform_dir, active_dataset_name)
+  os.makedirs(dataset_transform_dir, exist_ok=True)
+  input_transform_path = os.path.join(dataset_transform_dir, 'input.pickle')
+  target_transform_path = os.path.join(transform_dir, 'target.pickle')
+
+  variables, target_variables = get_variables(model_src_dataset_name)
+
+  lock_path = os.path.join(transform_dir, '.lock')
+  lock = Lock(lock_path, lifetime=timedelta(hours=1))
+  with lock:
+    if os.path.exists(input_transform_path):
+      input_transform = load_transform(input_transform_path)
+    else:
+
+      input_transform = create_transform(variables, active_dataset_name, model_src_dataset_name, input_transform_key, build_input_transform, input_transform_path)
+
+    if os.path.exists(target_transform_path):
+      target_transform = load_transform(target_transform_path)
+    else:
+      if evaluation:
+        raise RuntimeError("Target transform should only be fitted during training")
+      target_transform = create_transform(target_variables, active_dataset_name, model_src_dataset_name, target_transform_key, build_target_transform, target_transform_path)
+
+  return input_transform, target_transform
 
 
-def get_data_scaler(config):
-  """Data normalizer. Assume data are always in [0, 1]."""
-  if config.data.centered:
-    # Rescale to [-1, 1]
-    return lambda x: x * 2. - 1.
-  else:
-    return lambda x: x
-
-
-def get_data_inverse_scaler(config):
-  """Inverse data normalizer."""
-  if config.data.centered:
-    # Rescale [-1, 1] to [0, 1]
-    return lambda x: (x + 1.) / 2.
-  else:
-    return lambda x: x
-
-
-def crop_resize(image, resolution):
-  """Crop and resize an image to the given resolution."""
-  crop = tf.minimum(tf.shape(image)[0], tf.shape(image)[1])
-  h, w = tf.shape(image)[0], tf.shape(image)[1]
-  image = image[(h - crop) // 2:(h + crop) // 2,
-          (w - crop) // 2:(w + crop) // 2]
-  image = tf.image.resize(
-    image,
-    size=(resolution, resolution),
-    antialias=True,
-    method=tf.image.ResizeMethod.BICUBIC)
-  return tf.cast(image, tf.uint8)
-
-
-def resize_small(image, resolution):
-  """Shrink an image to the given resolution."""
-  h, w = image.shape[0], image.shape[1]
-  ratio = resolution / min(h, w)
-  h = tf.round(h * ratio, tf.int32)
-  w = tf.round(w * ratio, tf.int32)
-  return tf.image.resize(image, [h, w], antialias=True)
-
-
-def central_crop(image, size):
-  """Crop the center of an image to the given size."""
-  top = (image.shape[0] - size) // 2
-  left = (image.shape[1] - size) // 2
-  return tf.image.crop_to_bounding_box(image, top, left, size, size)
-
-
-def get_dataset(config, uniform_dequantization=False, evaluation=False):
-  """Create data loaders for training and evaluation.
+def get_dataset(active_dataset_name, model_src_dataset_name, input_transform_key, target_transform_key, transform_dir, batch_size, split, evaluation=False):
+  """Create data loaders for given split.
 
   Args:
-    config: A ml_collection.ConfigDict parsed from config files.
-    uniform_dequantization: If `True`, add uniform dequantization to images.
+    active_dataset_name: Name of dataset from which to load data splits
+    model_src_dataset_name: Name of dataset used to train the diffusion model (may be the same)
+    transform_dir: Path to where transforms should be stored
+    input_transform_key: Name of input transform pipeline to use
+    target_transform_key: Name of target transform pipeline to use
+    batch_size: Size of batch to use for DataLoaders
     evaluation: If `True`, fix number of epochs to 1.
+    split: Split of the active dataset to load
 
   Returns:
-    train_ds, eval_ds, dataset_builder.
+    data_loader, transform, target_transform.
   """
-  # Compute batch size for this worker.
-  batch_size = config.training.batch_size if not evaluation else config.eval.batch_size
-  if batch_size % jax.device_count() != 0:
-    raise ValueError(f'Batch sizes ({batch_size} must be divided by'
-                     f'the number of devices ({jax.device_count()})')
 
-  # Reduce this when image resolution is too large and data pointer is stored
-  shuffle_buffer_size = 10000
-  prefetch_size = tf.data.experimental.AUTOTUNE
-  num_epochs = None if not evaluation else 1
+  transform, target_transform = find_or_create_transforms(active_dataset_name, model_src_dataset_name, transform_dir, input_transform_key, target_transform_key, evaluation)
 
-  # Create dataset builders for each dataset.
-  if config.data.dataset == 'CIFAR10':
-    dataset_builder = tfds.builder('cifar10')
-    train_split_name = 'train'
-    eval_split_name = 'test'
+  data_dirpath = os.path.join(os.getenv('DERIVED_DATA'), 'moose', 'nc-datasets',active_dataset_name)
+  xr_data = xr.load_dataset(os.path.join(data_dirpath, f'{split}.nc'))
 
-    def resize_op(img):
-      img = tf.image.convert_image_dtype(img, tf.float32)
-      return tf.image.resize(img, [config.data.image_size, config.data.image_size], antialias=True)
+  variables, target_variables = get_variables(model_src_dataset_name)
 
-  elif config.data.dataset == 'SVHN':
-    dataset_builder = tfds.builder('svhn_cropped')
-    train_split_name = 'train'
-    eval_split_name = 'test'
+  xr_data = transform.transform(xr_data)
+  xr_data = target_transform.transform(xr_data)
+  xr_dataset = XRDataset(xr_data, variables, target_variables)
+  data_loader = DataLoader(xr_dataset, batch_size=batch_size)
 
-    def resize_op(img):
-      img = tf.image.convert_image_dtype(img, tf.float32)
-      return tf.image.resize(img, [config.data.image_size, config.data.image_size], antialias=True)
-
-  elif config.data.dataset == 'CELEBA':
-    dataset_builder = tfds.builder('celeb_a')
-    train_split_name = 'train'
-    eval_split_name = 'validation'
-
-    def resize_op(img):
-      img = tf.image.convert_image_dtype(img, tf.float32)
-      img = central_crop(img, 140)
-      img = resize_small(img, config.data.image_size)
-      return img
-
-  elif config.data.dataset == 'LSUN':
-    dataset_builder = tfds.builder(f'lsun/{config.data.category}')
-    train_split_name = 'train'
-    eval_split_name = 'validation'
-
-    if config.data.image_size == 128:
-      def resize_op(img):
-        img = tf.image.convert_image_dtype(img, tf.float32)
-        img = resize_small(img, config.data.image_size)
-        img = central_crop(img, config.data.image_size)
-        return img
-
-    else:
-      def resize_op(img):
-        img = crop_resize(img, config.data.image_size)
-        img = tf.image.convert_image_dtype(img, tf.float32)
-        return img
-
-  elif config.data.dataset in ['FFHQ', 'CelebAHQ']:
-    dataset_builder = tf.data.TFRecordDataset(config.data.tfrecords_path)
-    train_split_name = eval_split_name = 'train'
-
-  else:
-    raise NotImplementedError(
-      f'Dataset {config.data.dataset} not yet supported.')
-
-  # Customize preprocess functions for each dataset.
-  if config.data.dataset in ['FFHQ', 'CelebAHQ']:
-    def preprocess_fn(d):
-      sample = tf.io.parse_single_example(d, features={
-        'shape': tf.io.FixedLenFeature([3], tf.int64),
-        'data': tf.io.FixedLenFeature([], tf.string)})
-      data = tf.io.decode_raw(sample['data'], tf.uint8)
-      data = tf.reshape(data, sample['shape'])
-      data = tf.transpose(data, (1, 2, 0))
-      img = tf.image.convert_image_dtype(data, tf.float32)
-      if config.data.random_flip and not evaluation:
-        img = tf.image.random_flip_left_right(img)
-      if uniform_dequantization:
-        img = (tf.random.uniform(img.shape, dtype=tf.float32) + img * 255.) / 256.
-      return dict(image=img, label=None)
-
-  else:
-    def preprocess_fn(d):
-      """Basic preprocessing function scales data to [0, 1) and randomly flips."""
-      img = resize_op(d['image'])
-      if config.data.random_flip and not evaluation:
-        img = tf.image.random_flip_left_right(img)
-      if uniform_dequantization:
-        img = (tf.random.uniform(img.shape, dtype=tf.float32) + img * 255.) / 256.
-
-      return dict(image=img, label=d.get('label', None))
-
-  def create_dataset(dataset_builder, split):
-    dataset_options = tf.data.Options()
-    dataset_options.experimental_optimization.map_parallelization = True
-    dataset_options.experimental_threading.private_threadpool_size = 48
-    dataset_options.experimental_threading.max_intra_op_parallelism = 1
-    read_config = tfds.ReadConfig(options=dataset_options)
-    if isinstance(dataset_builder, tfds.core.DatasetBuilder):
-      dataset_builder.download_and_prepare()
-      ds = dataset_builder.as_dataset(
-        split=split, shuffle_files=True, read_config=read_config)
-    else:
-      ds = dataset_builder.with_options(dataset_options)
-    ds = ds.repeat(count=num_epochs)
-    ds = ds.shuffle(shuffle_buffer_size)
-    ds = ds.map(preprocess_fn, num_parallel_calls=tf.data.experimental.AUTOTUNE)
-    ds = ds.batch(batch_size, drop_remainder=True)
-    return ds.prefetch(prefetch_size)
-
-  train_ds = create_dataset(dataset_builder, train_split_name)
-  eval_ds = create_dataset(dataset_builder, eval_split_name)
-  return train_ds, eval_ds, dataset_builder
+  return data_loader, transform, target_transform
