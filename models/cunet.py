@@ -1,8 +1,15 @@
+import logging
 from . import utils, layers, layerspp, normalization
 import torch.nn as nn
 import functools
 import torch
 import numpy as np
+
+#####################################
+# !!!! MODEL ONLY FOR DEBUGGING!!!! #
+#####################################
+
+USABLE_IMAGE_SIZE = 28 # u-net architechture currently designed to work with 28x28 images
 
 class GaussianFourierProjection(nn.Module):
   """Gaussian random features for encoding time steps."""
@@ -37,17 +44,18 @@ class ScoreNet(nn.Module):
       channels: The number of channels for feature maps of each resolution.
       embed_dim: The dimensionality of Gaussian random feature embeddings.
     """
+    logging.warning("Only use cunet for debugging")
     super().__init__()
     self.config = config
     marginal_prob_std=None
-    cond_channels, output_channels = list(map(len, utils.get_variables(config)))
+    cond_channels, output_channels = list(map(len, utils.get_variables(config.data.dataset_name)))
     input_channels = output_channels + cond_channels + config.model.map_features
     channels=[32, 64, 128, 256]
     embed_dim=256
 
     # include a learnable feature map
     if config.model.map_features > 0:
-      self.map = nn.Parameter(torch.zeros(config.model.map_features, config.data.image_size, config.data.image_size))
+      self.map = nn.Parameter(torch.zeros(config.model.map_features, USABLE_IMAGE_SIZE, USABLE_IMAGE_SIZE))
 
     # Gaussian random feature embedding layer for time
     self.embed = nn.Sequential(GaussianFourierProjection(embed_dim=embed_dim),
@@ -77,14 +85,14 @@ class ScoreNet(nn.Module):
     self.dense7 = Dense(embed_dim, channels[0])
     self.tgnorm2 = nn.GroupNorm(32, num_channels=channels[0])
     self.tconv1 = nn.ConvTranspose2d(channels[0] + channels[0], output_channels, 3, stride=1)
-
+    self.upsample = nn.Upsample(size=self.config.data.image_size, mode='bilinear', align_corners=True)
     # The swish activation function
     self.act = lambda x: x * torch.sigmoid(x)
     self.marginal_prob_std = marginal_prob_std
 
   def forward(self, x, cond, t):
     # combine the modelled data and the conditioning inputs
-    x = torch.cat([x, cond], dim=1)
+    x = torch.cat([x, cond], dim=1)[..., :USABLE_IMAGE_SIZE, :USABLE_IMAGE_SIZE]
     # add map features to input
     if self.config.model.map_features > 0:
       x = torch.cat([x, self.map.broadcast_to((x.shape[0], *self.map.shape))], dim=1)
@@ -93,7 +101,7 @@ class ScoreNet(nn.Module):
     # Encoding path
     h1 = self.conv1(x)
     ## Incorporate information from t
-    h1 += self.dense1(embed)
+    h1 += self.dense1(embed)[..., :USABLE_IMAGE_SIZE, :USABLE_IMAGE_SIZE]
     ## Group normalization
     h1 = self.gnorm1(h1)
     h1 = self.act(h1)
@@ -125,6 +133,7 @@ class ScoreNet(nn.Module):
     h = self.tgnorm2(h)
     h = self.act(h)
     h = self.tconv1(torch.cat([h, h1], dim=1))
+    h = self.upsample(h)
 
     # TODO: Do I need to normalize with the marginal_prob_std? And what is it in this more complicated world? What is t in this framework?
     # Normalize output
