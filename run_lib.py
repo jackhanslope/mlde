@@ -50,6 +50,7 @@ from torchvision.utils import make_grid, save_image
 from utils import save_checkpoint, restore_checkpoint
 
 from ml_downscaling_emulator.utils import cp_model_rotated_pole
+from ml_downscaling_emulator.training.dataset import get_variables
 import matplotlib.pyplot as plt
 import xarray as xr
 
@@ -161,7 +162,7 @@ def train(config, workdir):
 
   # Building sampling functions
   if config.training.snapshot_sampling:
-    num_output_channels = len(datasets.get_variables(config.data.dataset_name)[1])
+    num_output_channels = len(get_variables(config.data.dataset_name)[1])
     sampling_shape = (config.training.batch_size, num_output_channels,
                       config.data.image_size, config.data.image_size)
     sampling_fn = sampling.get_sampling_fn(config, sde, sampling_shape, sampling_eps)

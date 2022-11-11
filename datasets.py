@@ -25,15 +25,7 @@ from flufl.lock import Lock
 from torch.utils.data import DataLoader
 import xarray as xr
 
-from ml_downscaling_emulator.training.dataset import build_input_transform, build_target_transform, XRDataset
-
-from models import utils as mutils
-
-def get_variables(dataset_name):
-  # ideally this would be defined here
-  # but code layout means can't import datasets model from the models package!
-  # so proxying to mutils here
-  return mutils.get_variables(dataset_name)
+from ml_downscaling_emulator.training.dataset import build_input_transform, build_target_transform, XRDataset, get_variables
 
 def create_transform(variables, active_dataset_name, model_src_dataset_name, transform_key, builder, store_path):
   logging.info(f"Fitting transform")
