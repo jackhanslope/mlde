@@ -37,13 +37,12 @@ def get_div_fn(fn):
   return div_fn
 
 
-def get_likelihood_fn(sde, inverse_scaler, hutchinson_type='Rademacher',
+def get_likelihood_fn(sde, hutchinson_type='Rademacher',
                       rtol=1e-5, atol=1e-5, method='RK45', eps=1e-5):
   """Create a function to compute the unbiased log-likelihood estimate of a given data point.
 
   Args:
     sde: A `sde_lib.SDE` object that represents the forward SDE.
-    inverse_scaler: The inverse data normalizer.
     hutchinson_type: "Rademacher" or "Gaussian". The type of noise for Hutchinson-Skilling trace estimator.
     rtol: A `float` number. The relative tolerance level of the black-box ODE solver.
     atol: A `float` number. The absolute tolerance level of the black-box ODE solver.
@@ -106,7 +105,7 @@ def get_likelihood_fn(sde, inverse_scaler, hutchinson_type='Rademacher',
       N = np.prod(shape[1:])
       bpd = bpd / N
       # A hack to convert log-likelihoods to bits/dim
-      offset = 7. - inverse_scaler(-1.)
+      offset = 7. - -1. # (or is it - 0.?)
       bpd = bpd + offset
       return bpd, z, nfe
 

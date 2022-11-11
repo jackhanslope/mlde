@@ -8,9 +8,9 @@ def get_default_configs():
   config.training = training = ml_collections.ConfigDict()
   config.training.batch_size = 16#128
   training.n_iters = 100000
-  training.snapshot_freq = 5000
+  training.snapshot_freq = 25000
   training.log_freq = 50
-  training.eval_freq = 100
+  training.eval_freq = 1000
   ## store additional checkpoints for preemption in cloud computing environments
   training.snapshot_freq_for_preemption = 1000
   ## produce samples at each snapshot.
@@ -47,6 +47,8 @@ def get_default_configs():
   data.uniform_dequantization = False
   data.input_transform = "per-ds"
   data.target_transform = "shared"
+  data.input_transform_key = "v1"
+  data.target_transform_key = "v1"
 
   # model
   config.model = model = ml_collections.ConfigDict()
@@ -57,7 +59,7 @@ def get_default_configs():
   model.beta_max = 20.
   model.dropout = 0.1
   model.embedding_type = 'fourier'
-  model.map_features = 0
+  model.map_features = 8
 
   # optimization
   config.optim = optim = ml_collections.ConfigDict()

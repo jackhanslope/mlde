@@ -5,7 +5,7 @@ from sampling import NoneCorrector, NonePredictor, shared_corrector_update_fn, s
 import functools
 
 
-def get_pc_inpainter(sde, predictor, corrector, inverse_scaler, snr,
+def get_pc_inpainter(sde, predictor, corrector, snr,
                      n_steps=1, probability_flow=False, continuous=False,
                      denoise=True, eps=1e-5):
   """Create an image inpainting function that uses PC samplers.
@@ -14,7 +14,6 @@ def get_pc_inpainter(sde, predictor, corrector, inverse_scaler, snr,
     sde: An `sde_lib.SDE` object that represents the forward SDE.
     predictor: A subclass of `sampling.Predictor` that represents a predictor algorithm.
     corrector: A subclass of `sampling.Corrector` that represents a corrector algorithm.
-    inverse_scaler: The inverse data normalizer.
     snr: A `float` number. The signal-to-noise ratio for the corrector.
     n_steps: An integer. The number of corrector steps per update of the corrector.
     probability_flow: If `True`, predictor solves the probability flow ODE for sampling.
@@ -77,12 +76,12 @@ def get_pc_inpainter(sde, predictor, corrector, inverse_scaler, snr,
         x, x_mean = corrector_inpaint_update_fn(model, data, mask, x, t)
         x, x_mean = projector_inpaint_update_fn(model, data, mask, x, t)
 
-      return inverse_scaler(x_mean if denoise else x)
+      return (x_mean if denoise else x)
 
   return pc_inpainter
 
 
-def get_pc_colorizer(sde, predictor, corrector, inverse_scaler,
+def get_pc_colorizer(sde, predictor, corrector,
                      snr, n_steps=1, probability_flow=False, continuous=False,
                      denoise=True, eps=1e-5):
   """Create a image colorization function based on Predictor-Corrector (PC) sampling.
@@ -91,7 +90,6 @@ def get_pc_colorizer(sde, predictor, corrector, inverse_scaler,
     sde: An `sde_lib.SDE` object that represents the forward SDE.
     predictor: A subclass of `sampling.Predictor` that represents a predictor algorithm.
     corrector: A subclass of `sampling.Corrector` that represents a corrector algorithm.
-    inverse_scaler: The inverse data normalizer.
     snr: A `float` number. The signal-to-noise ratio for correctors.
     n_steps: An integer. The number of corrector steps per update of the predictor.
     probability_flow: If `True`, solve the probability flow ODE for sampling with the predictor.
@@ -176,6 +174,6 @@ def get_pc_colorizer(sde, predictor, corrector, inverse_scaler,
         x, x_mean = corrector_colorize_update_fn(model, gray_scale_img, x, t)
         x, x_mean = predictor_colorize_update_fn(model, gray_scale_img, x, t)
 
-      return inverse_scaler(x_mean if denoise else x)
+      return (x_mean if denoise else x)
 
   return pc_colorizer
