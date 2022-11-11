@@ -15,9 +15,6 @@
 
 """All functions and modules related to model definition.
 """
-import os
-import yaml
-
 import torch
 import sde_lib
 import numpy as np
@@ -60,16 +57,6 @@ def get_sigmas(config):
     np.linspace(np.log(config.model.sigma_max), np.log(config.model.sigma_min), config.model.num_scales))
 
   return sigmas
-
-def get_variables(dataset_name):
-  data_dirpath = os.path.join(os.getenv('DERIVED_DATA'), 'moose', 'nc-datasets', dataset_name)
-  with open(os.path.join(data_dirpath, 'ds-config.yml'), 'r') as f:
-      ds_config = yaml.safe_load(f)
-
-  variables = [ pred_meta["variable"] for pred_meta in ds_config["predictors"] ]
-  target_variables = ["target_pr"]
-
-  return variables, target_variables
 
 def get_ddpm_params(config):
   """Get betas and alphas --- parameters used in the original DDPM paper."""

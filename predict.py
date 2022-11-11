@@ -48,6 +48,8 @@ from sde_lib import VESDE, VPSDE, subVPSDE
 #                       AnnealedLangevinDynamics)
 import datasets
 
+from ml_downscaling_emulator.training.dataset import get_variables
+
 import logging
 logger = logging.getLogger()
 logger.setLevel('INFO')
@@ -85,7 +87,7 @@ def load_model(config, sde, ckpt_filename):
     ema.copy_to(score_model.parameters())
 
     # Sampling
-    num_output_channels = len(datasets.get_variables(config.data.dataset_name)[1])
+    num_output_channels = len(get_variables(config.data.dataset_name)[1])
     sampling_shape = (config.eval.batch_size, num_output_channels,
                           config.data.image_size, config.data.image_size)
     sampling_fn = sampling.get_sampling_fn(config, sde, sampling_shape, sampling_eps)

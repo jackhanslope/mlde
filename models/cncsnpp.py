@@ -21,6 +21,8 @@ import functools
 import torch
 import numpy as np
 
+from ml_downscaling_emulator.training.dataset import get_variables
+
 ResnetBlockDDPM = layerspp.ResnetBlockDDPMpp
 ResnetBlockBigGAN = layerspp.ResnetBlockBigGANpp
 Combine = layerspp.Combine
@@ -138,7 +140,7 @@ class cNCSNpp(nn.Module):
       raise ValueError(f'resblock type {resblock_type} unrecognized.')
 
     # Downsampling block
-    cond_channels, output_channels = list(map(len, utils.get_variables(config.data.dataset_name)))
+    cond_channels, output_channels = list(map(len, get_variables(config.data.dataset_name)))
     channels = cond_channels + output_channels + config.model.map_features
     if progressive_input != 'none':
       input_pyramid_ch = channels

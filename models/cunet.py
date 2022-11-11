@@ -5,6 +5,8 @@ import functools
 import torch
 import numpy as np
 
+from ml_downscaling_emulator.training.dataset import get_variables
+
 #####################################
 # !!!! MODEL ONLY FOR DEBUGGING!!!! #
 #####################################
@@ -48,7 +50,7 @@ class ScoreNet(nn.Module):
     super().__init__()
     self.config = config
     marginal_prob_std=None
-    cond_channels, output_channels = list(map(len, utils.get_variables(config.data.dataset_name)))
+    cond_channels, output_channels = list(map(len, get_variables(config.data.dataset_name)))
     input_channels = output_channels + cond_channels + config.model.map_features
     channels=[32, 64, 128, 256]
     embed_dim=256
