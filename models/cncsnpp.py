@@ -239,6 +239,13 @@ class cNCSNpp(nn.Module):
     self.all_modules = nn.ModuleList(modules)
 
   def forward(self, x, cond, time_cond):
+    # # Removed this transform which was basically always running as centered set to False for default_xr_config
+    # # However, may wish to re-add it as seems to improve results a bit
+    # # If do re-add it, it need to be up here before adding conditional input and location-specific params to x
+    # if not self.config.data.centered:
+    #   # If input data is in [0, 1]
+    #   x = 2 * x - 1.
+
     # combine the modelled data and the conditioning inputs
     x = torch.cat([x, cond], dim=1)
     # add map features to input
