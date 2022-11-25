@@ -16,7 +16,7 @@ python main.py --workdir ${workdir} --config ${config_path} --mode train --confi
 
 epoch=2
 num_samples=2
-eval_batchsize=128
+eval_batchsize=32
 
 rm -rf "${workdir}/samples/epoch-${epoch}/${dataset}"
 python predict.py ${workdir} --dataset ${dataset} --epoch ${epoch} --batch-size ${eval_batchsize} --num-samples ${num_samples}
