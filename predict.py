@@ -19,7 +19,8 @@ from models.ema import ExponentialMovingAverage
 # import tensorflow as tf
 # import tensorflow_datasets as tfds
 # import tensorflow_gan as tfgan
-import tqdm
+from tqdm import tqdm
+from tqdm.contrib.logging import logging_redirect_tqdm
 
 # from ml_downscaling_emulator.training.dataset import XRDataset
 
@@ -104,7 +105,6 @@ def generate_samples(sampling_fn, score_model, config, cond_batch):
     return samples
 
 def generate_predictions(sampling_fn, score_model, config, cond_batch, target_transform, coords, cf_data_vars):
-    print("making predictions", flush=True)
     samples = generate_samples(sampling_fn, score_model, config, cond_batch)
 
     coords = {**dict(coords)}
@@ -161,12 +161,16 @@ def main(workdir: Path, dataset: str = typer.Option(...), dataset_split: str = "
         typer.echo(f"Sample run {sample_id}...")
         cf_data_vars = {key: xr_data_eval.data_vars[key] for key in ["rotated_latitude_longitude", "time_bnds", "grid_latitude_bnds", "grid_longitude_bnds"]}
         preds = []
-        for batch_num, (cond_batch, _) in enumerate(eval_dl):
-            typer.echo(f"Working on batch {batch_num}")
-            time_idx_start = batch_num*eval_dl.batch_size
-            coords = xr_data_eval.isel(time=slice(time_idx_start, time_idx_start+len(cond_batch))).coords
+        with logging_redirect_tqdm():
+            with tqdm(total=len(eval_dl.dataset), desc=f'Sampling', unit=' timesteps') as pbar:
+                for batch_num, (cond_batch, _) in enumerate(eval_dl):
+                    # typer.echo(f"Working on batch {batch_num}")
+                    time_idx_start = batch_num*eval_dl.batch_size
+                    coords = xr_data_eval.isel(time=slice(time_idx_start, time_idx_start+len(cond_batch))).coords
 
-            preds.append(generate_predictions(sampling_fn, score_model, config, cond_batch, target_transform, coords, cf_data_vars))
+                    preds.append(generate_predictions(sampling_fn, score_model, config, cond_batch, target_transform, coords, cf_data_vars))
+
+                    pbar.update(cond_batch.shape[0])
 
         ds = xr.combine_by_coords(preds, compat='no_conflicts', combine_attrs="drop_conflicts", coords="all", join="inner", data_vars="all")
 
