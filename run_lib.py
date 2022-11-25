@@ -41,6 +41,8 @@ import likelihood
 import sde_lib
 from absl import flags
 import torch
+from tqdm import tqdm
+from tqdm.contrib.logging import logging_redirect_tqdm
 from torch.utils.tensorboard import SummaryWriter
 import torchvision
 from torchvision.utils import make_grid, save_image
@@ -171,25 +173,32 @@ def train(config, workdir):
   step = state["step"]
   for epoch in range(initial_epoch, num_train_epochs + 1):
     state['epoch'] = epoch
-    for cond_batch, x_batch in train_dl:
+    with logging_redirect_tqdm():
+      with tqdm(total=len(train_dl.dataset), desc=f'Epoch {epoch}', unit=' timesteps') as pbar:
+        for cond_batch, x_batch in train_dl:
 
-      x_batch = x_batch.to(config.device)
-      cond_batch = cond_batch.to(config.device)
-      # Convert data to JAX arrays and normalize them. Use ._numpy() to avoid copy.
-      # batch = torch.from_numpy(next(train_iter)['image']._numpy()).to(config.device).float()
-      # batch = batch.permute(0, 3, 1, 2)
-      # Execute one training step
-      loss = train_step_fn(state, x_batch, cond_batch)
-      if step % config.training.log_freq == 0:
-        logging.info("epoch: %d, step: %d, training_loss: %.5e" % (epoch, step, loss.item()))
-        writer.add_scalar("training_loss", loss.cpu().detach(), global_step=step)
+          x_batch = x_batch.to(config.device)
+          cond_batch = cond_batch.to(config.device)
+          # Convert data to JAX arrays and normalize them. Use ._numpy() to avoid copy.
+          # batch = torch.from_numpy(next(train_iter)['image']._numpy()).to(config.device).float()
+          # batch = batch.permute(0, 3, 1, 2)
+          # Execute one training step
+          loss = train_step_fn(state, x_batch, cond_batch)
+          if step % config.training.log_freq == 0:
+            logging.info("epoch: %d, step: %d, training_loss: %.5e" % (epoch, step, loss.item()))
+            writer.add_scalar("training_loss", loss.cpu().detach(), global_step=step)
 
-      # Report the loss on an evaluation dataset periodically
-      if step % config.training.eval_freq == 0:
-        val_set_loss = val_loss(config, eval_dl, eval_step_fn, state)
-        logging.info("epoch: %d, step: %d, eval_loss: %.5e" % (epoch, step, val_set_loss))
-        writer.add_scalar("eval_loss", val_set_loss, global_step=step)
-      step += 1
+          # Report the loss on an evaluation dataset periodically
+          if step % config.training.eval_freq == 0:
+            val_set_loss = val_loss(config, eval_dl, eval_step_fn, state)
+            logging.info("epoch: %d, step: %d, eval_loss: %.5e" % (epoch, step, val_set_loss))
+            writer.add_scalar("eval_loss", val_set_loss, global_step=step)
+
+          # Log progress so far on epoch
+          pbar.update(cond_batch.shape[0])
+
+          step += 1
+
     # Save a temporary checkpoint to resume training after each epoch
     save_checkpoint(checkpoint_meta_dir, state)
     # Report the loss on an evaluation dataset each epoch
