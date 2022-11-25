@@ -16,15 +16,9 @@
 # pylint: skip-file
 """Training and evaluation for score-based generative models. """
 
-import gc
-import io
-import math
 import os
-import time
-import PIL
 
 from codetiming import Timer
-import numpy as np
 # import tensorflow as tf
 # import tensorflow_gan as tfgan
 import logging
@@ -44,30 +38,11 @@ import torch
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 from torch.utils.tensorboard import SummaryWriter
-import torchvision
-from torchvision.utils import make_grid, save_image
 from utils import save_checkpoint, restore_checkpoint
 
-from ml_downscaling_emulator.utils import cp_model_rotated_pole
-from ml_downscaling_emulator.training.dataset import get_variables, get_dataset
-import matplotlib.pyplot as plt
-import xarray as xr
+from ml_downscaling_emulator.training.dataset import get_dataset
 
 FLAGS = flags.FLAGS
-
-def plot_to_image(figure):
-  """Converts the matplotlib plot specified by 'figure' to a PNG image and
-  returns it. The supplied figure is closed and inaccessible after this call."""
-  buf = io.BytesIO()
-  plt.savefig(buf, format='png')
-  # Closing the figure prevents it from being displayed directly inside
-  # the notebook.
-  plt.close(figure)
-  buf.seek(0)
-
-  image = PIL.Image.open(buf)
-  image = torchvision.transforms.ToTensor()(image)#.unsqueeze(0)
-  return image
 
 def val_loss(config, eval_ds, eval_step_fn, state):
   val_set_loss = 0.0
@@ -158,13 +133,6 @@ def train(config, workdir):
                                     reduce_mean=reduce_mean, continuous=continuous,
                                     likelihood_weighting=likelihood_weighting)
 
-  # Building sampling functions
-  if config.training.snapshot_sampling:
-    num_output_channels = len(get_variables(config.data.dataset_name)[1])
-    sampling_shape = (config.training.batch_size, num_output_channels,
-                      config.data.image_size, config.data.image_size)
-    sampling_fn = sampling.get_sampling_fn(config, sde, sampling_shape, sampling_eps)
-
   num_train_epochs = config.training.n_epochs
 
   # In case there are multiple hosts (e.g., TPU pods), only log to host 0
@@ -211,58 +179,6 @@ def train(config, workdir):
       checkpoint_path = os.path.join(checkpoint_dir, f'epoch_{epoch}.pth')
       save_checkpoint(checkpoint_path, state)
       logging.info(f"epoch: {epoch}, checkpoint saved to {checkpoint_path}")
-
-    # Generate and save samples
-    if config.training.snapshot_sampling:
-      logging.info(f"step: {epoch}, sampling...")
-      ema.store(score_model.parameters())
-      ema.copy_to(score_model.parameters())
-
-      eval_cond_batch, eval_x_batch = next(iter(eval_dl))
-      eval_cond_batch = eval_cond_batch.to(config.device)
-
-      sample, n = sampling_fn(score_model, eval_cond_batch)
-      ema.restore(score_model.parameters())
-      this_sample_dir = os.path.join(sample_dir, "iter_{}".format(step))
-      os.makedirs(this_sample_dir, exist_ok=True)
-      nrow = math.ceil(np.sqrt(sample.shape[0]))
-
-      xr_data = train_dl.dataset.ds
-      coords = {"sample_id": np.arange(sample.shape[0]), "grid_longitude": xr_data.coords["grid_longitude"], "grid_latitude": xr_data.coords["grid_latitude"]}
-      dims=["sample_id", "grid_latitude", "grid_longitude"]
-      ds = xr.Dataset(data_vars={key: xr_data.data_vars[key] for key in ["grid_latitude_bnds", "grid_longitude_bnds", "rotated_latitude_longitude"]}, coords=coords, attrs={})
-      ds['pred_pr'] = xr.DataArray(sample.cpu()[:,0].squeeze(1), dims=dims)
-      ds['target_pr'] = xr.DataArray(eval_x_batch.cpu()[:,0].squeeze(1), dims=dims)
-
-      fig, axes = plt.subplots(nrow*2, nrow, figsize=(24,24), subplot_kw={'projection': cp_model_rotated_pole})
-      if nrow == 1:
-        axes = [axes]
-      for isample in range(sample.shape[0]):
-          ax = axes[(isample // nrow)*2][isample % nrow]
-          ax.coastlines()
-          ds["pred_pr"].isel(sample_id=isample).plot(ax=ax)
-          ax.set_title("Cond generated pr")
-
-          ax = axes[(isample // nrow)*2+1][isample % nrow]
-          ax.coastlines()
-          ds["target_pr"].isel(sample_id=isample).plot(ax=ax)
-          ax.set_title("Target pr")
-
-      with open(os.path.join(this_sample_dir, f"sample.png"), "wb") as fout:
-        plt.savefig(fout)
-
-      with open(os.path.join(this_sample_dir, "sample.np"), "wb") as fout:
-        np.save(fout, sample.cpu().numpy())
-
-      # writer.add_image("samples", plot_to_image(fig).numpy(), step)
-
-      # with writer.as_default():
-      writer.add_image('samples', plot_to_image(fig), global_step=step)
-        # tf.summary.image("samples", plot_to_image(fig), step=step)
-
-      # image_grid = make_grid(sample, nrow, padding=2)
-      # with tf.io.gfile.GFile(os.path.join(this_sample_dir, "sample.png"), "wb") as fout:
-      #   save_image(image_grid, fout)
 
   writer.flush()
   writer.close()
