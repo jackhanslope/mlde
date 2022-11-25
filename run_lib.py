@@ -98,6 +98,10 @@ def train(config, workdir):
   with open(config_path, 'w') as f:
     f.write(config.to_yaml())
 
+  # Create transform saving directory
+  transform_dir = os.path.join(workdir, "transforms")
+  os.makedirs(transform_dir, exist_ok=True)
+
   # Create directories for experimental logs
   sample_dir = os.path.join(workdir, "samples")
   os.makedirs(sample_dir, exist_ok=True)
@@ -105,8 +109,11 @@ def train(config, workdir):
   tb_dir = os.path.join(workdir, "tensorboard")
   os.makedirs(tb_dir, exist_ok=True)
 
-
   writer = SummaryWriter(tb_dir)
+
+  # Build dataloaders
+  train_dl, _, _ = get_dataset(config.data.dataset_name, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.training.batch_size, split="train", evaluation=False)
+  eval_dl, _, _ = get_dataset(config.data.dataset_name, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.training.batch_size, split="val", evaluation=False)
 
   # Initialize model.
   score_model = mutils.create_model(config)
@@ -123,14 +130,6 @@ def train(config, workdir):
   # Resume training when intermediate checkpoints are detected
   state = restore_checkpoint(checkpoint_meta_dir, state, config.device)
   initial_epoch = int(state['epoch'])
-
-  # Create transform saving directory
-  transform_dir = os.path.join(workdir, "transforms")
-  os.makedirs(transform_dir, exist_ok=True)
-
-  # Build data iterators
-  train_ds, _, _ = get_dataset(config.data.dataset_name, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.training.batch_size, split="train", evaluation=False)
-  eval_ds, _, _ = get_dataset(config.data.dataset_name, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.training.batch_size, split="val", evaluation=False)
 
   # Setup SDEs
   if config.training.sde.lower() == 'vpsde':
@@ -172,7 +171,7 @@ def train(config, workdir):
   step = state["step"]
   for epoch in range(initial_epoch, num_train_epochs + 1):
     state['epoch'] = epoch
-    for cond_batch, x_batch in train_ds:
+    for cond_batch, x_batch in train_dl:
 
       x_batch = x_batch.to(config.device)
       cond_batch = cond_batch.to(config.device)
@@ -187,14 +186,14 @@ def train(config, workdir):
 
       # Report the loss on an evaluation dataset periodically
       if step % config.training.eval_freq == 0:
-        val_set_loss = val_loss(config, eval_ds, eval_step_fn, state)
+        val_set_loss = val_loss(config, eval_dl, eval_step_fn, state)
         logging.info("epoch: %d, step: %d, eval_loss: %.5e" % (epoch, step, val_set_loss))
         writer.add_scalar("eval_loss", val_set_loss, global_step=step)
       step += 1
     # Save a temporary checkpoint to resume training after each epoch
     save_checkpoint(checkpoint_meta_dir, state)
     # Report the loss on an evaluation dataset each epoch
-    val_set_loss = val_loss(config, eval_ds, eval_step_fn, state)
+    val_set_loss = val_loss(config, eval_dl, eval_step_fn, state)
     logging.info("epoch: %d, eval_loss: %.5e" % (epoch, val_set_loss))
     writer.add_scalar("epoch_eval_loss", val_set_loss, global_step=epoch)
 
@@ -210,7 +209,7 @@ def train(config, workdir):
       ema.store(score_model.parameters())
       ema.copy_to(score_model.parameters())
 
-      eval_cond_batch, eval_x_batch = next(iter(eval_ds))
+      eval_cond_batch, eval_x_batch = next(iter(eval_dl))
       eval_cond_batch = eval_cond_batch.to(config.device)
 
       sample, n = sampling_fn(score_model, eval_cond_batch)
@@ -219,7 +218,7 @@ def train(config, workdir):
       os.makedirs(this_sample_dir, exist_ok=True)
       nrow = math.ceil(np.sqrt(sample.shape[0]))
 
-      xr_data = train_ds.dataset.ds
+      xr_data = train_dl.dataset.ds
       coords = {"sample_id": np.arange(sample.shape[0]), "grid_longitude": xr_data.coords["grid_longitude"], "grid_latitude": xr_data.coords["grid_latitude"]}
       dims=["sample_id", "grid_latitude", "grid_longitude"]
       ds = xr.Dataset(data_vars={key: xr_data.data_vars[key] for key in ["grid_latitude_bnds", "grid_longitude_bnds", "rotated_latitude_longitude"]}, coords=coords, attrs={})
