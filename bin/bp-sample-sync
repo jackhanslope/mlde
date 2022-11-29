@@ -9,7 +9,7 @@ checkpoint=$2
 split="val"
 bp_host=${3:-"bp"}
 
-samples_path="score-sde/workdirs/subvpsde/xarray_cncsnpp_continuous/${run_name}/samples/${checkpoint}/"
+samples_path="workdirs/${run_name}/samples/${checkpoint}/"
 
 bp_path="/user/work/vf20964/${samples_path}"
 local_path="${DERIVED_DATA}/${samples_path}"

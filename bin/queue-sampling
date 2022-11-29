@@ -17,12 +17,14 @@ else
   dependency_opt=""
 fi
 
+workdir=${DERIVED_DATA}/workdirs/score-sde/subvpsde/xarray_cncsnpp_continuous/${model_run_id}
+
 set -x
 
 # sample CPM
 
-lbatch ${dependency_opt} -g 1 -m 16 -q gpu,cnu -t ${sampling_duration} --condaenv cuda-downscaling --array 1-${sampling_jobs} -- python predict.py --epoch ${epoch} --num-samples 1 --dataset ${cpm_dataset} /user/work/vf20964/score-sde/workdirs/subvpsde/xarray_cncsnpp_continuous/${model_run_id}
+lbatch ${dependency_opt} -g 1 -m 16 -q gpu,cnu -t ${sampling_duration} --condaenv cuda-downscaling --array 1-${sampling_jobs} -- python predict.py --epoch ${epoch} --num-samples 1 --dataset ${cpm_dataset} ${workdir}
 
 # sample GCM
 
-lbatch ${dependency_opt} -g 1 -m 16 -q gpu,cnu -t ${sampling_duration} --condaenv cuda-downscaling --array 1-${sampling_jobs} -- python predict.py --epoch ${epoch} --num-samples 1 --dataset ${gcm_dataset} /user/work/vf20964/score-sde/workdirs/subvpsde/xarray_cncsnpp_continuous/${model_run_id}
+lbatch ${dependency_opt} -g 1 -m 16 -q gpu,cnu -t ${sampling_duration} --condaenv cuda-downscaling --array 1-${sampling_jobs} -- python predict.py --epoch ${epoch} --num-samples 1 --dataset ${gcm_dataset} ${workdir}
