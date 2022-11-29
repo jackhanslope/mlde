@@ -57,9 +57,9 @@ logger.setLevel('INFO')
 app = typer.Typer()
 
 class SDEOption(str, Enum):
-    VESDE = "vesde"
-    VPSDE = "vpsde"
-    subVPSDE = "subvpsde"
+    VESDE = "ve"
+    VPSDE = "vp"
+    subVPSDE = "subvp"
 
 def load_model(config, sde, ckpt_filename):
     if sde == SDEOption.VESDE:
