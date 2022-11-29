@@ -11,8 +11,10 @@ shift 2
 
 training_duration=36
 
+workdir=${DERIVED_DATA}/workdirs/score-sde/subvpsde/xarray_cncsnpp_continuous/${model_run_id}
+
 set -x
 
 # train
 
-lbatch -g 1 -m 16 -q gpu,cnu -t ${training_duration} --condaenv cuda-downscaling -- python main.py --workdir /user/work/vf20964/score-sde/workdirs/subvpsde/xarray_cncsnpp_continuous/${model_run_id} --config configs/subvp/xarray_cncsnpp_continuous.py --config.data.dataset_name=${cpm_dataset} $@ --mode train
+lbatch -g 1 -m 16 -q gpu,cnu -t ${training_duration} --condaenv cuda-downscaling -- python main.py --workdir ${workdir} --config configs/subvp/xarray_cncsnpp_continuous.py --config.data.dataset_name=${cpm_dataset} $@ --mode train
