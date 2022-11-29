@@ -5,8 +5,9 @@ set -euo pipefail
 config_name="xarray_cunet_continuous"
 dataset="bham_gcmx-4x_spechum-temp-vort_random"
 
-workdir="output/test/${config_name}"
-config_path="configs/subvp/${config_name}.py"
+sde="ve"
+workdir="output/test/${sde}/${config_name}"
+config_path="configs/${sde}/${config_name}.py"
 
 map_features=1
 train_batch_size=2
@@ -19,4 +20,4 @@ num_samples=2
 eval_batchsize=32
 
 rm -rf "${workdir}/samples/epoch-${epoch}/${dataset}"
-python predict.py ${workdir} --dataset ${dataset} --epoch ${epoch} --batch-size ${eval_batchsize} --num-samples ${num_samples}
+python predict.py ${workdir} --sde ${sde} --dataset ${dataset} --epoch ${epoch} --batch-size ${eval_batchsize} --num-samples ${num_samples}
