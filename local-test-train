@@ -12,7 +12,7 @@ map_features=1
 train_batch_size=2
 
 rm -rf ${workdir}
-python main.py --workdir ${workdir} --config ${config_path} --mode train --config.data.dataset_name=${dataset} --config.training.snapshot_freq=5 --config.training.eval_freq=100 --config.training.log_freq=50 --config.training.n_epochs=2 --config.model.map_features=${map_features} --config.training.batch_size=${train_batch_size}
+WANDB_EXPERIMENT_NAME="test" python main.py --workdir ${workdir} --config ${config_path} --mode train --config.data.dataset_name=${dataset} --config.training.snapshot_freq=5 --config.training.eval_freq=100 --config.training.log_freq=50 --config.training.n_epochs=2 --config.model.map_features=${map_features} --config.training.batch_size=${train_batch_size} --config.data.input_transform_key=stanurrecen --config.data.target_transform_key=sqrturrecen
 
 epoch=2
 num_samples=2
