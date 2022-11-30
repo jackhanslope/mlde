@@ -22,7 +22,7 @@ def get_config():
   config = get_default_configs()
   # training
   training = config.training
-  training.sde = 've'
+  training.sde = 'vesde'
   training.continuous = True
 
   # sampling
