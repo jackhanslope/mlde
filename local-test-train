@@ -5,8 +5,9 @@ set -euo pipefail
 config_name="xarray_cunet_continuous"
 dataset="bham_gcmx-4x_spechum-temp-vort_random"
 
-workdir="output/test/${config_name}"
-config_path="configs/subvp/${config_name}.py"
+sde="vesde"
+workdir="output/test/${sde}/${config_name}"
+config_path="configs/${sde}/${config_name}.py"
 
 map_features=1
 train_batch_size=2
