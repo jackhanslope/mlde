@@ -1,24 +1,39 @@
-#!/usr/bin/bash
+#!/usr/bin/env python
 # setup jobs for training and then sampling from a model
 
-set -euo pipefail
 
-model_run_id=$1
-cpm_dataset=$2
-gcm_dataset=$3
-shift 3
-# Add any other config on the commandline for training
-# --config.data.input_transform_key=spatial
+import os
+import subprocess
+import sys
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+import typer
 
-set -x
+app = typer.Typer()
 
-# train
+@app.command(
+    context_settings={
+        "allow_extra_args": True,
+        "ignore_unknown_options": True,
+    }
+)
+def main(ctx: typer.Context, model_run_id: str, cpm_dataset: str, gcm_dataset: str, sde: str):
+    # Add any other config on the commandline for training
+    # --config.data.input_transform_key=spatial
 
-training_job_id=$(${SCRIPT_DIR}/queue-training ${model_run_id} ${cpm_dataset} $@)
-echo ${training_job_id}
+    # train
+    train_cmd = [f"{os.path.dirname(__file__)}/queue-training"] + [model_run_id, cpm_dataset, sde] + ctx.args
+    print(" ".join(train_cmd), file=sys.stderr)
+    output = subprocess.run(train_cmd, capture_output=True)
+    training_job_id = output.stdout.decode("utf8")
+    print(training_job_id)
+    print(output.stderr.decode("utf8"), file=sys.stderr)
 
-# sample
+    # sample
+    sample_cmd = [f"{os.path.dirname(__file__)}/queue-sampling"] + [model_run_id, cpm_dataset, gcm_dataset, sde, "--depends-on", training_job_id] + ctx.args
+    print(" ".join(sample_cmd), file=sys.stderr)
+    output = subprocess.run(sample_cmd, capture_output=True)
+    print(output.stdout.decode("utf8"))
+    print(output.stderr.decode("utf8"), file=sys.stderr)
 
-${SCRIPT_DIR}/queue-sampling ${model_run_id} ${cpm_dataset} ${gcm_dataset} ${training_job_id}
+if __name__ == "__main__":
+    app()

@@ -1,32 +1,23 @@
-from enum import Enum
-import importlib
 import os
-
 from pathlib import Path
-import re
 
 from codetiming import Timer
 from knockknock import slack_sender
+from ml_collections import config_dict
 import shortuuid
 import typer
+from tqdm import tqdm
+from tqdm.contrib.logging import logging_redirect_tqdm
 import xarray as xr
+import yaml
+
+from ml_downscaling_emulator.training.dataset import get_variables, get_dataset
 
 from losses import get_optimizer
 from models.ema import ExponentialMovingAverage
 
-# import torch.nn as nn
-# import numpy as np
-# import tensorflow as tf
-# import tensorflow_datasets as tfds
-# import tensorflow_gan as tfgan
-from tqdm import tqdm
-from tqdm.contrib.logging import logging_redirect_tqdm
-
-# from ml_downscaling_emulator.training.dataset import XRDataset
-
 from utils import restore_checkpoint
 
-# from configs.subvp import xarray_cncsnpp_continuous
 import models
 from models import utils as mutils
 # from models import ncsnv2
@@ -48,29 +39,24 @@ from sde_lib import VESDE, VPSDE, subVPSDE
 #                       NonePredictor,
 #                       AnnealedLangevinDynamics)
 
-from ml_downscaling_emulator.training.dataset import get_variables, get_dataset
-
 import logging
 logger = logging.getLogger()
 logger.setLevel('INFO')
 
 app = typer.Typer()
 
-class SDEOption(str, Enum):
-    VESDE = "vesde"
-    VPSDE = "vpsde"
-    subVPSDE = "subvpsde"
-
-def load_model(config, sde, ckpt_filename):
-    if sde == SDEOption.VESDE:
+def load_model(config, ckpt_filename):
+    if config.training.sde == "vesde":
         sde = VESDE(sigma_min=config.model.sigma_min, sigma_max=config.model.sigma_max, N=config.model.num_scales)
         sampling_eps = 1e-5
-    elif sde == SDEOption.VPSDE:
+    elif config.training.sde == "vpsde":
         sde = VPSDE(beta_min=config.model.beta_min, beta_max=config.model.beta_max, N=config.model.num_scales)
         sampling_eps = 1e-3
-    elif sde == SDEOption.subVPSDE:
+    elif config.training.sde == "subvpsde":
         sde = subVPSDE(beta_min=config.model.beta_min, beta_max=config.model.beta_max, N=config.model.num_scales)
         sampling_eps = 1e-3
+    else:
+        raise RuntimeError(f"Unknown SDE {config.training.sde}")
 
     random_seed = 0 #@param {"type": "integer"}
 
@@ -120,14 +106,6 @@ def generate_predictions(sampling_fn, score_model, config, cond_batch, target_tr
     return samples_ds
 
 def load_config(config_path):
-    # config_path = os.path.join(os.path.dirname(__file__), "configs", re.sub(r'sde$', '', sde.value.lower()), f"{config_name}.py")
-
-    # spec = importlib.util.spec_from_file_location("config", config_path)
-    # module = importlib.util.module_from_spec(spec)
-    # spec.loader.exec_module(module)
-    # return module.get_config()
-    import yaml
-    from ml_collections import config_dict
     logger.info(f"Loading config from {config_path}")
     with open(config_path) as f:
         config = config_dict.ConfigDict(yaml.unsafe_load(f))
@@ -137,7 +115,7 @@ def load_config(config_path):
 @app.command()
 @Timer(name="sample", text="{name}: {minutes:.1f} minutes", logger=logger.info)
 @slack_sender(webhook_url=os.getenv("KK_SLACK_WH_URL"), channel="general")
-def main(workdir: Path, dataset: str = typer.Option(...), dataset_split: str = "val", sde: SDEOption = SDEOption.subVPSDE, epoch: int = typer.Option(...), batch_size: int = None, num_samples: int = 3):
+def main(workdir: Path, dataset: str = typer.Option(...), dataset_split: str = "val", epoch: int = typer.Option(...), batch_size: int = None, num_samples: int = 3):
     config_path = os.path.join(workdir, "config.yml")
     config = load_config(config_path)
     if batch_size is not None:
@@ -148,7 +126,7 @@ def main(workdir: Path, dataset: str = typer.Option(...), dataset_split: str = "
 
     ckpt_filename = os.path.join(workdir, "checkpoints", f"epoch_{epoch}.pth")
     logger.info(f"Loading model from {ckpt_filename}")
-    score_model, sampling_fn = load_model(config, sde, ckpt_filename)
+    score_model, sampling_fn = load_model(config, ckpt_filename)
 
     transform_dir = os.path.join(workdir, "transforms")
 
