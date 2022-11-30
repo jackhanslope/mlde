@@ -46,7 +46,7 @@ def main(ctx: typer.Context, model_run_id: str, cpm_dataset: str, sde: str):
 
     training_duration=36
 
-    workdir=f"{os.getenv('DERIVED_DATA')}/workdirs/score-sde/{sde}/xarray_cncsnpp_continuous/${model_run_id}"
+    workdir=f"{os.getenv('DERIVED_DATA')}/workdirs/score-sde/{sde}/xarray_cncsnpp_continuous/{model_run_id}"
 
     full_cmd = queue_cmd(training_duration) + ["--"] + train_cmd(sde, cpm_dataset, workdir, ctx.args)
     print(" ".join(full_cmd).strip(), file=sys.stderr)
