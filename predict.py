@@ -56,21 +56,18 @@ logger.setLevel('INFO')
 
 app = typer.Typer()
 
-class SDEOption(str, Enum):
-    VESDE = "ve"
-    VPSDE = "vp"
-    subVPSDE = "subvp"
-
-def load_model(config, sde, ckpt_filename):
-    if sde == SDEOption.VESDE:
+def load_model(config, ckpt_filename):
+    if config.training.sde == "vesde":
         sde = VESDE(sigma_min=config.model.sigma_min, sigma_max=config.model.sigma_max, N=config.model.num_scales)
         sampling_eps = 1e-5
-    elif sde == SDEOption.VPSDE:
+    elif config.training.sde == "vpsde":
         sde = VPSDE(beta_min=config.model.beta_min, beta_max=config.model.beta_max, N=config.model.num_scales)
         sampling_eps = 1e-3
-    elif sde == SDEOption.subVPSDE:
+    elif config.training.sde == "subvpsde":
         sde = subVPSDE(beta_min=config.model.beta_min, beta_max=config.model.beta_max, N=config.model.num_scales)
         sampling_eps = 1e-3
+    else:
+        raise RuntimeError(f"Unknown SDE {config.training.sde}")
 
     random_seed = 0 #@param {"type": "integer"}
 
@@ -137,7 +134,7 @@ def load_config(config_path):
 @app.command()
 @Timer(name="sample", text="{name}: {minutes:.1f} minutes", logger=logger.info)
 @slack_sender(webhook_url=os.getenv("KK_SLACK_WH_URL"), channel="general")
-def main(workdir: Path, dataset: str = typer.Option(...), dataset_split: str = "val", sde: SDEOption = SDEOption.subVPSDE, epoch: int = typer.Option(...), batch_size: int = None, num_samples: int = 3):
+def main(workdir: Path, dataset: str = typer.Option(...), dataset_split: str = "val", epoch: int = typer.Option(...), batch_size: int = None, num_samples: int = 3):
     config_path = os.path.join(workdir, "config.yml")
     config = load_config(config_path)
     if batch_size is not None:
@@ -148,7 +145,7 @@ def main(workdir: Path, dataset: str = typer.Option(...), dataset_split: str = "
 
     ckpt_filename = os.path.join(workdir, "checkpoints", f"epoch_{epoch}.pth")
     logger.info(f"Loading model from {ckpt_filename}")
-    score_model, sampling_fn = load_model(config, sde, ckpt_filename)
+    score_model, sampling_fn = load_model(config, ckpt_filename)
 
     transform_dir = os.path.join(workdir, "transforms")
 
