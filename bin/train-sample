@@ -22,7 +22,7 @@ def main(ctx: typer.Context, model_run_id: str, cpm_dataset: str, gcm_dataset: s
 
     # train
     train_cmd = [f"{os.path.dirname(__file__)}/queue-training"] + [model_run_id, cpm_dataset, sde] + ctx.args
-    print("+ ".join(train_cmd).strip(), file=sys.stderr)
+    print(" ".join(train_cmd).strip(), file=sys.stderr)
     output = subprocess.run(train_cmd, capture_output=True)
     print(output.stderr.decode("utf8").strip(), file=sys.stderr)
     training_job_id = output.stdout.decode("utf8").strip()
@@ -30,7 +30,7 @@ def main(ctx: typer.Context, model_run_id: str, cpm_dataset: str, gcm_dataset: s
 
     # sample
     sample_cmd = [f"{os.path.dirname(__file__)}/queue-sampling"] + [model_run_id, cpm_dataset, gcm_dataset, sde, "--depends-on", training_job_id]
-    print("+ ".join(sample_cmd).strip(), file=sys.stderr)
+    print(" ".join(sample_cmd).strip(), file=sys.stderr)
     output = subprocess.run(sample_cmd, capture_output=True)
     print(output.stderr.decode("utf8").strip(), file=sys.stderr)
     print(output.stdout.decode("utf8").strip())
