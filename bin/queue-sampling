@@ -9,14 +9,13 @@ import typer
 
 app = typer.Typer()
 
-def sample_cmd(sde, dataset, epoch, samples_per_job, workdir):
+def sample_cmd(dataset, epoch, samples_per_job, workdir):
   sample_basecmd = ["python", f"predict.py"]
 
   sample_opts = {
     "--epoch": str(epoch),
     "--num-samples": str(samples_per_job),
     "--dataset": dataset,
-    "--sde": sde,
   }
 
   return sample_basecmd + [arg for item in sample_opts.items() for arg in item] + [workdir]
@@ -49,14 +48,14 @@ def main(model_run_id: str, cpm_dataset: str, gcm_dataset: str, sde: str, epoch:
   shared_queue_cmd = queue_cmd(depends_on, sampling_jobs, sampling_duration)
 
   # sample CPM
-  full_cmd = shared_queue_cmd + ["--"] + sample_cmd(sde, cpm_dataset, epoch, samples_per_job, workdir)
+  full_cmd = shared_queue_cmd + ["--"] + sample_cmd(cpm_dataset, epoch, samples_per_job, workdir)
   print(" ".join(full_cmd).strip(), file=sys.stderr)
   output = subprocess.run(full_cmd, capture_output=True)
   print(output.stderr.decode("utf8").strip(), file=sys.stderr)
   print(output.stdout.decode("utf8").strip())
 
   # sample GCM
-  full_cmd = shared_queue_cmd + ["--"] + sample_cmd(sde, gcm_dataset, epoch, samples_per_job, workdir)
+  full_cmd = shared_queue_cmd + ["--"] + sample_cmd(gcm_dataset, epoch, samples_per_job, workdir)
   print(" ".join(full_cmd).strip(), file=sys.stderr)
   output = subprocess.run(full_cmd, capture_output=True)
   print(output.stderr.decode("utf8").strip(), file=sys.stderr)
