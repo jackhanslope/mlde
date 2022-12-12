@@ -16,6 +16,7 @@
 # pylint: skip-file
 """Training and evaluation for score-based generative models. """
 
+import itertools
 import os
 
 from codetiming import Timer
@@ -27,6 +28,7 @@ import logging
 from models import cunet
 from models import cncsnpp
 import losses
+from models.location_params import LocationParams
 import sampling
 from models import utils as mutils
 from models.ema import ExponentialMovingAverage
@@ -50,6 +52,8 @@ def val_loss(config, eval_ds, eval_step_fn, state):
     # eval_cond_batch, eval_x_batch = next(iter(eval_ds))
     eval_x_batch = eval_x_batch.to(config.device)
     eval_cond_batch = eval_cond_batch.to(config.device)
+    # append any location-specific parameters
+    cond_batch = state['location_params'](cond_batch)
     # eval_batch = eval_batch.permute(0, 3, 1, 2)
     eval_loss = eval_step_fn(state, eval_x_batch, eval_cond_batch)
 
@@ -94,9 +98,13 @@ def train(config, workdir):
 
   # Initialize model.
   score_model = mutils.create_model(config)
-  ema = ExponentialMovingAverage(score_model.parameters(), decay=config.model.ema_rate)
-  optimizer = losses.get_optimizer(config, score_model.parameters())
-  state = dict(optimizer=optimizer, model=score_model, ema=ema, step=0, epoch=0)
+  # include a learnable feature map
+  location_params = LocationParams(config.model.map_features, config.data.image_size)
+  location_params = location_params.to(config.device)
+  location_params = torch.nn.DataParallel(location_params)
+  ema = ExponentialMovingAverage(itertools.chain(score_model.parameters(), location_params.parameters()), decay=config.model.ema_rate)
+  optimizer = losses.get_optimizer(config, itertools.chain(score_model.parameters(), location_params.parameters()))
+  state = dict(optimizer=optimizer, model=score_model, location_params=location_params, ema=ema, step=0, epoch=0)
 
   # Create checkpoints directory
   checkpoint_dir = os.path.join(workdir, "checkpoints")
@@ -147,6 +155,8 @@ def train(config, workdir):
 
           x_batch = x_batch.to(config.device)
           cond_batch = cond_batch.to(config.device)
+          # append any location-specific parameters
+          cond_batch = state['location_params'](cond_batch)
           # Convert data to JAX arrays and normalize them. Use ._numpy() to avoid copy.
           # batch = torch.from_numpy(next(train_iter)['image']._numpy()).to(config.device).float()
           # batch = batch.permute(0, 3, 1, 2)
