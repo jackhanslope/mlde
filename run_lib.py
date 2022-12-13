@@ -53,7 +53,7 @@ def val_loss(config, eval_ds, eval_step_fn, state):
     eval_x_batch = eval_x_batch.to(config.device)
     eval_cond_batch = eval_cond_batch.to(config.device)
     # append any location-specific parameters
-    cond_batch = state['location_params'](cond_batch)
+    eval_cond_batch = state['location_params'](cond_batch)
     # eval_batch = eval_batch.permute(0, 3, 1, 2)
     eval_loss = eval_step_fn(state, eval_x_batch, eval_cond_batch)
 
