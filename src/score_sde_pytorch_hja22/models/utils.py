@@ -16,7 +16,7 @@
 """All functions and modules related to model definition.
 """
 import torch
-import sde_lib
+from .. import sde_lib
 import numpy as np
 
 
