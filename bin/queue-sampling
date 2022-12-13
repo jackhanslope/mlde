@@ -10,7 +10,7 @@ import typer
 app = typer.Typer()
 
 def sample_cmd(dataset, epoch, samples_per_job, workdir):
-  sample_basecmd = ["python", f"predict.py"]
+  sample_basecmd = ["python", f"bin/predict.py"]
 
   sample_opts = {
     "--epoch": str(epoch),
