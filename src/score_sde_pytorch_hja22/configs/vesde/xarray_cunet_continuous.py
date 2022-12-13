@@ -15,7 +15,7 @@
 
 # Lint as: python3
 """Training UNet on XArray with VE SDE."""
-from configs.default_xarray_configs import get_default_configs
+from score_sde_pytorch_hja22.configs.default_xarray_configs import get_default_configs
 
 
 def get_config():
