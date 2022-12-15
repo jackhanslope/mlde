@@ -25,22 +25,22 @@ from codetiming import Timer
 import logging
 # Keep the import below for registering all model definitions
 # from models import ddpm, ncsnv2, ncsnpp
-from models import cunet
-from models import cncsnpp
-import losses
-from models.location_params import LocationParams
-import sampling
-from models import utils as mutils
-from models.ema import ExponentialMovingAverage
-# import evaluation
-import likelihood
-import sde_lib
+from .models import cunet
+from .models import cncsnpp
+from . import losses
+from .models.location_params import LocationParams
+from . import sampling
+from .models import utils as mutils
+from .models.ema import ExponentialMovingAverage
+# import .evaluation
+from . import likelihood
+from . import sde_lib
 from absl import flags
 import torch
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 from torch.utils.tensorboard import SummaryWriter
-from utils import save_checkpoint, restore_checkpoint
+from .utils import save_checkpoint, restore_checkpoint
 
 from ml_downscaling_emulator.training.dataset import get_dataset
 
