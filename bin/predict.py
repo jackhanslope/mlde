@@ -65,7 +65,7 @@ def load_model(config, ckpt_filename):
 
     sigmas = mutils.get_sigmas(config)
     score_model = mutils.create_model(config)
-    location_params = LocationParams(config.model.map_features, config.data.image_size)
+    location_params = LocationParams(config.model.loc_spec_channels, config.data.image_size)
     location_params = location_params.to(config.device)
     location_params = torch.nn.DataParallel(location_params)
     optimizer = get_optimizer(config, itertools.chain(score_model.parameters(), location_params.parameters()))
