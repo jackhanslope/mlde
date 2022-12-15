@@ -87,12 +87,12 @@ class ScoreNet(nn.Module):
     self.dense7 = Dense(embed_dim, channels[0])
     self.tgnorm2 = nn.GroupNorm(32, num_channels=channels[0])
     self.tconv1 = nn.ConvTranspose2d(channels[0] + channels[0], output_channels, 3, stride=1)
-    self.upsample = nn.Upsample(size=self.config.data.image_size, mode='bilinear', align_corners=True)
     # The swish activation function
     self.act = lambda x: x * torch.sigmoid(x)
     self.marginal_prob_std = marginal_prob_std
 
   def forward(self, x, cond, t):
+    output_shape = x.shape
     # combine the modelled data and the conditioning inputs
     x = torch.cat([x, cond], dim=1)[..., :USABLE_IMAGE_SIZE, :USABLE_IMAGE_SIZE]
     # DEPRECATED: old way to add a map of location-specific features to input
@@ -135,7 +135,7 @@ class ScoreNet(nn.Module):
     h = self.tgnorm2(h)
     h = self.act(h)
     h = self.tconv1(torch.cat([h, h1], dim=1))
-    h = self.upsample(h)
+    h = torch.nn.functional.interpolate(h, size=output_shape[-2:], mode='bilinear', align_corners=True)
 
     # TODO: Do I need to normalize with the marginal_prob_std? And what is it in this more complicated world? What is t in this framework?
     # Normalize output
