@@ -99,7 +99,7 @@ def train(config, workdir):
   # Initialize model.
   score_model = mutils.create_model(config)
   # include a learnable feature map
-  location_params = LocationParams(config.model.map_features, config.data.image_size)
+  location_params = LocationParams(config.model.loc_spec_channels, config.data.image_size)
   location_params = location_params.to(config.device)
   location_params = torch.nn.DataParallel(location_params)
   ema = ExponentialMovingAverage(itertools.chain(score_model.parameters(), location_params.parameters()), decay=config.model.ema_rate)
