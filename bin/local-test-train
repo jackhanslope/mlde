@@ -9,11 +9,11 @@ sde="vesde"
 workdir="output/test/${sde}/${config_name}"
 config_path="src/score_sde_pytorch_hja22/configs/${sde}/${config_name}.py"
 
-map_features=1
+loc_spec_channels=1
 train_batch_size=2
 
 rm -rf ${workdir}
-WANDB_EXPERIMENT_NAME="test" python bin/main.py --workdir ${workdir} --config ${config_path} --mode train --config.data.dataset_name=${dataset} --config.training.snapshot_freq=5 --config.training.eval_freq=100 --config.training.log_freq=50 --config.training.n_epochs=2 --config.model.map_features=${map_features} --config.training.batch_size=${train_batch_size} --config.data.input_transform_key=stanurrecen --config.data.target_transform_key=sqrturrecen
+WANDB_EXPERIMENT_NAME="test" python bin/main.py --workdir ${workdir} --config ${config_path} --mode train --config.data.dataset_name=${dataset} --config.training.snapshot_freq=5 --config.training.eval_freq=100 --config.training.log_freq=50 --config.training.n_epochs=2 --config.model.loc_spec_channels=${loc_spec_channels} --config.training.batch_size=${train_batch_size} --config.data.input_transform_key=stanurrecen --config.data.target_transform_key=sqrturrecen
 
 epoch=2
 num_samples=2
