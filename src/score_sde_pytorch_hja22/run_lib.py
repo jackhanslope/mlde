@@ -37,6 +37,7 @@ from . import likelihood
 from . import sde_lib
 from absl import flags
 import torch
+import torchvision
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 from torch.utils.tensorboard import SummaryWriter
@@ -146,6 +147,9 @@ def train(config, workdir):
   # In case there are multiple hosts (e.g., TPU pods), only log to host 0
   logging.info("Starting training loop at epoch %d." % (initial_epoch,))
 
+  if config.training.random_crop_size > 0:
+    random_crop = torchvision.transforms.RandomCrop(config.training.random_crop_size)
+
   step = state["step"]
   for epoch in range(initial_epoch, num_train_epochs + 1):
     state['epoch'] = epoch
@@ -157,6 +161,13 @@ def train(config, workdir):
           cond_batch = cond_batch.to(config.device)
           # append any location-specific parameters
           cond_batch = state['location_params'](cond_batch)
+
+          if config.training.random_crop_size > 0:
+            x_ch = x_batch.shape[1]
+            cropped = random_crop(torch.cat([x_batch, cond_batch], dim=1))
+            x_batch = cropped[:,:x_ch]
+            cond_batch = cropped[:,x_ch:]
+
           # Convert data to JAX arrays and normalize them. Use ._numpy() to avoid copy.
           # batch = torch.from_numpy(next(train_iter)['image']._numpy()).to(config.device).float()
           # batch = batch.permute(0, 3, 1, 2)
