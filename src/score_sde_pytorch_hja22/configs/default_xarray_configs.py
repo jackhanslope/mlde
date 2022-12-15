@@ -57,7 +57,8 @@ def get_default_configs():
   model.beta_max = 20.
   model.dropout = 0.1
   model.embedding_type = 'fourier'
-  model.map_features = 8
+  model.map_features = 0 # DEPRECATED, use loc_spec_channels
+  model.loc_spec_channels = 8
 
   # optimization
   config.optim = optim = ml_collections.ConfigDict()
