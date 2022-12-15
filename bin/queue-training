@@ -10,10 +10,10 @@ import typer
 app = typer.Typer()
 
 def train_cmd(sde, dataset, workdir, config_overrides=list):
-  train_basecmd = ["python", f"main.py"]
+  train_basecmd = ["python", f"bin/main.py"]
 
   train_opts = {
-    "--config": f"configs/{sde}/xarray_cncsnpp_continuous.py",
+    "--config": f"src/score_sde_pytorch_hja22/configs/{sde}/xarray_cncsnpp_continuous.py",
     "--workdir": workdir,
     "--mode": "train"
   }

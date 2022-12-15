@@ -15,7 +15,7 @@
 
 """Training and evaluation"""
 
-import run_lib
+import score_sde_pytorch_hja22.run_lib as run_lib
 from absl import app
 from absl import flags
 from ml_collections.config_flags import config_flags
