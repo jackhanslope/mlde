@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "score_sde_pytorch_hja22"
 version = "0.0.1"
-license = Apache-2.0
+license = "Apache-2.0"
 authors = [
   { name="Henry Addison", email="henry.addison@bristol.ac.uk" },
 ]
