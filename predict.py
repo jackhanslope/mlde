@@ -1,3 +1,4 @@
+import itertools
 import os
 from pathlib import Path
 
@@ -5,6 +6,7 @@ from codetiming import Timer
 from knockknock import slack_sender
 from ml_collections import config_dict
 import shortuuid
+import torch
 import typer
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
@@ -15,6 +17,7 @@ from ml_downscaling_emulator.training.dataset import get_variables, get_dataset
 
 from losses import get_optimizer
 from models.ema import ExponentialMovingAverage
+from models.location_params import LocationParams
 
 from utils import restore_checkpoint
 
@@ -62,12 +65,14 @@ def load_model(config, ckpt_filename):
 
     sigmas = mutils.get_sigmas(config)
     score_model = mutils.create_model(config)
-
-    optimizer = get_optimizer(config, score_model.parameters())
-    ema = ExponentialMovingAverage(score_model.parameters(),
+    location_params = LocationParams(config.model.map_features, config.data.image_size)
+    location_params = location_params.to(config.device)
+    location_params = torch.nn.DataParallel(location_params)
+    optimizer = get_optimizer(config, itertools.chain(score_model.parameters(), location_params.parameters()))
+    ema = ExponentialMovingAverage(itertools.chain(score_model.parameters(), location_params.parameters()),
                                    decay=config.model.ema_rate)
     state = dict(step=0, optimizer=optimizer,
-                 model=score_model, ema=ema)
+                 model=score_model, location_params=location_params, ema=ema)
 
     state = restore_checkpoint(ckpt_filename, state, config.device)
     ema.copy_to(score_model.parameters())
@@ -78,7 +83,7 @@ def load_model(config, ckpt_filename):
                           config.data.image_size, config.data.image_size)
     sampling_fn = sampling.get_sampling_fn(config, sde, sampling_shape, sampling_eps)
 
-    return score_model, sampling_fn
+    return state, sampling_fn
 
 def generate_samples(sampling_fn, score_model, config, cond_batch):
     cond_batch = cond_batch.to(config.device)
@@ -126,8 +131,9 @@ def main(workdir: Path, dataset: str = typer.Option(...), dataset_split: str = "
 
     ckpt_filename = os.path.join(workdir, "checkpoints", f"epoch_{epoch}.pth")
     logger.info(f"Loading model from {ckpt_filename}")
-    score_model, sampling_fn = load_model(config, ckpt_filename)
-
+    state, sampling_fn = load_model(config, ckpt_filename)
+    score_model = state['model']
+    location_params = state['location_params']
     transform_dir = os.path.join(workdir, "transforms")
 
     # Data
@@ -142,6 +148,8 @@ def main(workdir: Path, dataset: str = typer.Option(...), dataset_split: str = "
         with logging_redirect_tqdm():
             with tqdm(total=len(eval_dl.dataset), desc=f'Sampling', unit=' timesteps') as pbar:
                 for batch_num, (cond_batch, _) in enumerate(eval_dl):
+                    # append any location-specific parameters
+                    cond_batch = location_params(cond_batch)
                     # typer.echo(f"Working on batch {batch_num}")
                     time_idx_start = batch_num*eval_dl.batch_size
                     coords = xr_data_eval.isel(time=slice(time_idx_start, time_idx_start+len(cond_batch))).coords

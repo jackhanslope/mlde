@@ -67,9 +67,9 @@ class cNCSNpp(nn.Module):
     combine_method = config.model.progressive_combine.lower()
     combiner = functools.partial(Combine, method=combine_method)
 
-    # include a learnable feature map
-    if config.model.map_features > 0:
-      self.map = nn.Parameter(torch.zeros(config.model.map_features, config.data.image_size, config.data.image_size))
+    # # include a learnable feature map
+    # if config.model.map_features > 0:
+    #   self.map = nn.Parameter(torch.zeros(config.model.map_features, config.data.image_size, config.data.image_size))
 
     modules = []
     # timestep/noise_level embedding; only for continuous training
@@ -248,9 +248,9 @@ class cNCSNpp(nn.Module):
 
     # combine the modelled data and the conditioning inputs
     x = torch.cat([x, cond], dim=1)
-    # add map features to input
-    if self.config.model.map_features > 0:
-      x = torch.cat([x, self.map.broadcast_to((x.shape[0], *self.map.shape))], dim=1)
+    # # add map features to input
+    # if self.config.model.map_features > 0:
+    #   x = torch.cat([x, self.map.broadcast_to((x.shape[0], *self.map.shape))], dim=1)
     # timestep/noise_level embedding; only for continuous training
     modules = self.all_modules
     m_idx = 0
