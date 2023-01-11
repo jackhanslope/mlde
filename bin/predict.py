@@ -120,13 +120,13 @@ def load_config(config_path):
 @app.command()
 @Timer(name="sample", text="{name}: {minutes:.1f} minutes", logger=logger.info)
 @slack_sender(webhook_url=os.getenv("KK_SLACK_WH_URL"), channel="general")
-def main(workdir: Path, dataset: str = typer.Option(...), dataset_split: str = "val", epoch: int = typer.Option(...), batch_size: int = None, num_samples: int = 3):
+def main(workdir: Path, dataset: str = typer.Option(...), split: str = "val", epoch: int = typer.Option(...), batch_size: int = None, num_samples: int = 3):
     config_path = os.path.join(workdir, "config.yml")
     config = load_config(config_path)
     if batch_size is not None:
         config.eval.batch_size = batch_size
 
-    output_dirpath = workdir/"samples"/f"epoch-{epoch}"/dataset/dataset_split
+    output_dirpath = workdir/"samples"/f"epoch-{epoch}"/dataset/split
     os.makedirs(output_dirpath, exist_ok=True)
 
     ckpt_filename = os.path.join(workdir, "checkpoints", f"epoch_{epoch}.pth")
@@ -137,7 +137,7 @@ def main(workdir: Path, dataset: str = typer.Option(...), dataset_split: str = "
     transform_dir = os.path.join(workdir, "transforms")
 
     # Data
-    eval_dl, _, target_transform = get_dataset(dataset, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.eval.batch_size,  split=dataset_split, evaluation=True)
+    eval_dl, _, target_transform = get_dataset(dataset, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.eval.batch_size,  split=split, evaluation=True)
 
     xr_data_eval = eval_dl.dataset.ds
 
