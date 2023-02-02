@@ -5,7 +5,7 @@ import functools
 import torch
 import numpy as np
 
-from ml_downscaling_emulator.training.dataset import get_variables
+from mlde_utils.training.dataset import get_variables
 
 #####################################
 # !!!! MODEL ONLY FOR DEBUGGING!!!! #
