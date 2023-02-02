@@ -13,7 +13,7 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 import xarray as xr
 import yaml
 
-from ml_downscaling_emulator.training.dataset import get_variables, get_dataset
+from mlde_utils.training.dataset import get_variables, get_dataset
 
 from score_sde_pytorch_hja22.losses import get_optimizer
 from score_sde_pytorch_hja22.models.ema import ExponentialMovingAverage
