@@ -26,8 +26,12 @@ for file_path in pickled_paths:
 
     shutil.move(file_path, old_file_path)
 
-    with open(old_file_path, "rb") as fi:
-        xfm = RenameUnpickler(fi).load()
+    try:
+        with open(old_file_path, "rb") as fi:
+            xfm = RenameUnpickler(fi).load()
+    except AttributeError as e:
+        print(str(e))
+        next()
 
     with open(file_path, "wb") as fo:
         pickle.dump(xfm, fo, pickle.HIGHEST_PROTOCOL)
