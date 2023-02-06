@@ -31,7 +31,7 @@ for file_path in pickled_paths:
             xfm = RenameUnpickler(fi).load()
     except AttributeError as e:
         print(str(e))
-        next()
+        continue
 
     with open(file_path, "wb") as fo:
         pickle.dump(xfm, fo, pickle.HIGHEST_PROTOCOL)
