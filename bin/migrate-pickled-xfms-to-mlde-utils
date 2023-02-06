@@ -3,6 +3,7 @@
 
 import pickle
 import glob
+import time
 
 import shutil
 
@@ -14,12 +15,14 @@ class RenameUnpickler(pickle.Unpickler):
         return super(RenameUnpickler, self).find_class(renamed_module, name)
 
 
-pickled_paths = glob.glob("/user/work/vf20964/workdirs/score-sde/subvpsde/xarray_cncsnpp_continuous/*/transforms/input.pickle")
+pickled_paths = glob.glob("/user/work/vf20964/workdirs/score-sde/subvpsde/xarray_cncsnpp_continuous/*/transforms/*/input.pickle")
+
+run_at = int(time.time())
 
 for file_path in pickled_paths:
     print(f"fixing {file_path}")
 
-    old_file_path = file_path + ".old"
+    old_file_path = file_path + f".old{run_at}"
 
     shutil.move(file_path, old_file_path)
 
