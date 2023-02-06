@@ -4,6 +4,8 @@
 import pickle
 import glob
 
+import shutil
+
 class RenameUnpickler(pickle.Unpickler):
     def find_class(self, module, name):
         renamed_module = module
@@ -12,18 +14,20 @@ class RenameUnpickler(pickle.Unpickler):
         return super(RenameUnpickler, self).find_class(renamed_module, name)
 
 
-pickled_paths = glob.glob("/user/work/vf20964/workdirs/score-sde/subvpsde/xarray_cncsnpp_continuous/*/transforms/target.pickle")
+pickled_paths = glob.glob("/user/work/vf20964/workdirs/score-sde/subvpsde/xarray_cncsnpp_continuous/*/transforms/input.pickle")
 
 for file_path in pickled_paths:
     print(f"fixing {file_path}")
 
-    new_file_path = file_path + ".new"
+    old_file_path = file_path + ".old"
 
-    with open(file_path, "rb") as fi:
+    shutil.move(file_path, old_file_path)
+
+    with open(old_file_path, "rb") as fi:
         xfm = RenameUnpickler(fi).load()
 
-    with open(new_file_path, "wb") as fo:
+    with open(file_path, "wb") as fo:
         pickle.dump(xfm, fo, pickle.HIGHEST_PROTOCOL)
 
-    with open(new_file_path, "rb") as fo:
+    with open(file_path, "rb") as fo:
         xfm_new = pickle.load(fo)
