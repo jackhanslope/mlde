@@ -15,7 +15,7 @@ class RenameUnpickler(pickle.Unpickler):
         return super(RenameUnpickler, self).find_class(renamed_module, name)
 
 
-pickled_paths = glob.glob("/user/work/vf20964/workdirs/score-sde/vesde/xarray_cncsnpp_continuous/*/transforms/*/input.pickle") + glob.glob("/user/work/vf20964/workdirs/score-sde/vesde/xarray_cncsnpp_continuous/*/transforms/target.pickle")
+pickled_paths = glob.glob("/user/work/vf20964/workdirs/score-sde/*/xarray_cncsnpp_continuous/*/transforms/*/input.pickle") + glob.glob("/user/work/vf20964/workdirs/score-sde/*/xarray_cncsnpp_continuous/*/transforms/target.pickle")
 
 run_at = int(time.time())
 
