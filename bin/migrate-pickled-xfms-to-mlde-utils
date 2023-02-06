@@ -1,0 +1,29 @@
+#!/usr/bin/env python
+# migrate pickled transforms old ml_downscaling_emulator namespace to new mlde_utils package
+
+import pickle
+import glob
+
+class RenameUnpickler(pickle.Unpickler):
+    def find_class(self, module, name):
+        renamed_module = module
+        if module == "ml_downscaling_emulator.training.dataset":
+            renamed_module = "mlde_utils.training.dataset"
+        return super(RenameUnpickler, self).find_class(renamed_module, name)
+
+
+pickled_paths = glob.glob("/user/work/vf20964/workdirs/score-sde/subvpsde/xarray_cncsnpp_continuous/*/transforms/target.pickle")
+
+for file_path in pickled_paths:
+    print(f"fixing {file_path}")
+
+    new_file_path = file_path + ".new"
+
+    with open(file_path, "rb") as fi:
+        xfm = RenameUnpickler(fi).load()
+
+    with open(new_file_path, "wb") as fo:
+        pickle.dump(xfm, fo, pickle.HIGHEST_PROTOCOL)
+
+    with open(new_file_path, "rb") as fo:
+        xfm_new = pickle.load(fo)
