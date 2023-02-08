@@ -21,4 +21,5 @@ for pred_files in grouped_pred_files:
     # join those partial random ids together for the output filepath in the train directory (rather than one of the subset train dirs)
     output_filepath = os.path.join(root, f"train/predictions-{'-'.join(random_ids)}.nc")
     print(f"save to {output_filepath}")
+    os.makedirs(os.path.dirname(output_filepath), exist_ok=True)
     xr.concat([xr.open_dataset(f) for f in pred_files], dim="time").to_netcdf(output_filepath)
