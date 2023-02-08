@@ -16,8 +16,8 @@ grouped_pred_files = list(zip(*[ glob.glob(os.path.join(root, f"train-{i}/*.nc")
 for pred_files in grouped_pred_files:
 
     # take a bit of the random id in each sample file's name
-    random_ids = [fn[20:25] for fn in pred_files]
+    random_ids = [fn[-25:-20] for fn in pred_files]
     # join those partial random ids together for the output filepath in the train directory (rather than one of the subset train dirs)
-    output_filepath = os.path.join(root, f"train/predictions-{'-'.join(random_ids)}")
+    output_filepath = os.path.join(root, f"train/predictions-{'-'.join(random_ids)}.nc")
 
     xr.concat([xr.open_dataset(f) for f in pred_files], dim="time").to_netcdf(output_filepath)
