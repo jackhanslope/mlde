@@ -1,0 +1,23 @@
+#!/usr/bin/env python
+# Concatenate samples from a bunch of subsets of training set
+
+import glob
+import os
+import sys
+import xarray as xr
+
+root = sys.argv[1]
+
+num_subsets = 5
+
+# group sample files into tuples with one from each subset
+grouped_pred_files = list(zip(*[ glob.glob(os.path.join(root, f"train-{i}/*.nc")) for i in range(0,num_subsets) ]))
+
+for pred_files in grouped_pred_files:
+
+    # take a bit of the random id in each sample file's name
+    random_ids = [fn[20:25] for fn in pred_files]
+    # join those partial random ids together for the output filepath in the train directory (rather than one of the subset train dirs)
+    output_filepath = os.path.join(root, f"train/predictions-{'-'.join(random_ids)}")
+
+    xr.concat([xr.open_dataset(f) for f in pred_files], dim="time").to_netcdf(output_filepath)
