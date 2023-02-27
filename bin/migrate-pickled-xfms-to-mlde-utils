@@ -10,8 +10,12 @@ import shutil
 class RenameUnpickler(pickle.Unpickler):
     def find_class(self, module, name):
         renamed_module = module
-        if module == "ml_downscaling_emulator.training.dataset":
+        if renamed_module == "ml_downscaling_emulator.training.dataset":
             renamed_module = "mlde_utils.training.dataset"
+
+        moved_transforms = ["CropT", "Standardize", "PixelStandardize", "NoopT", "PixelMatchModelSrcStandardize", "MinMax", "UnitRangeT", "ClipT", "RecentreT", "SqrtT", "RootT", "RawMomentT", "LogT", "ComposeT"]
+        if renamed_module == "mlde_utils.training.dataset" and name in moved_transforms:
+            renamed_module = "mlde_utils.tranforms"
         return super(RenameUnpickler, self).find_class(renamed_module, name)
 
 
