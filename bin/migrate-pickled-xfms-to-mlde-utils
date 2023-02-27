@@ -15,7 +15,7 @@ class RenameUnpickler(pickle.Unpickler):
 
         moved_transforms = ["CropT", "Standardize", "PixelStandardize", "NoopT", "PixelMatchModelSrcStandardize", "MinMax", "UnitRangeT", "ClipT", "RecentreT", "SqrtT", "RootT", "RawMomentT", "LogT", "ComposeT"]
         if renamed_module == "mlde_utils.training.dataset" and name in moved_transforms:
-            renamed_module = "mlde_utils.tranforms"
+            renamed_module = "mlde_utils.transforms"
         return super(RenameUnpickler, self).find_class(renamed_module, name)
 
 
