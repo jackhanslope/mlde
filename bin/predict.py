@@ -13,7 +13,8 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 import xarray as xr
 import yaml
 
-from mlde_utils.training.dataset import get_variables, get_dataset
+from mlde_utils.torch import get_dataloader
+from mlde_utils.training.dataset import get_variables
 
 from score_sde_pytorch_hja22.losses import get_optimizer
 from score_sde_pytorch_hja22.models.ema import ExponentialMovingAverage
@@ -137,7 +138,7 @@ def main(workdir: Path, dataset: str = typer.Option(...), split: str = "val", ep
     transform_dir = os.path.join(workdir, "transforms")
 
     # Data
-    eval_dl, _, target_transform = get_dataset(dataset, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.eval.batch_size,  split=split, evaluation=True)
+    eval_dl, _, target_transform = get_dataloader(dataset, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.eval.batch_size,  split=split, evaluation=True)
 
     xr_data_eval = eval_dl.dataset.ds
 
