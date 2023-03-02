@@ -43,7 +43,7 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 from torch.utils.tensorboard import SummaryWriter
 from .utils import save_checkpoint, restore_checkpoint
 
-from mlde_utils.training.dataset import get_dataset
+from mlde_utils.torch import get_dataloader
 
 FLAGS = flags.FLAGS
 
@@ -94,8 +94,8 @@ def train(config, workdir):
   writer = SummaryWriter(tb_dir)
 
   # Build dataloaders
-  train_dl, _, _ = get_dataset(config.data.dataset_name, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.training.batch_size, split="train", evaluation=False)
-  eval_dl, _, _ = get_dataset(config.data.dataset_name, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.training.batch_size, split="val", evaluation=False)
+  train_dl, _, _ = get_dataloader(config.data.dataset_name, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.training.batch_size, split="train", evaluation=False)
+  eval_dl, _, _ = get_dataloader(config.data.dataset_name, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.training.batch_size, split="val", evaluation=False)
 
   # Initialize model.
   score_model = mutils.create_model(config)
