@@ -13,7 +13,8 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 import xarray as xr
 import yaml
 
-from mlde_utils.training.dataset import get_variables, get_dataset
+from mlde_utils.torch import XRDataset
+from mlde_utils.training.dataset import get_dataset, get_variables
 
 from score_sde_pytorch_hja22.losses import get_optimizer
 from score_sde_pytorch_hja22.models.ema import ExponentialMovingAverage
@@ -137,22 +138,25 @@ def main(workdir: Path, dataset: str = typer.Option(...), split: str = "val", ep
     transform_dir = os.path.join(workdir, "transforms")
 
     # Data
-    eval_dl, _, target_transform = get_dataset(dataset, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.eval.batch_size,  split=split, evaluation=True)
+    xr_data_eval, _, target_transform = get_dataset(dataset, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir,  split=split, evaluation=True)
+    variables, _ = get_variables(config.data.dataset_name)
 
-    xr_data_eval = eval_dl.dataset.ds
 
     for sample_id in range(num_samples):
         typer.echo(f"Sample run {sample_id}...")
         cf_data_vars = {key: xr_data_eval.data_vars[key] for key in ["rotated_latitude_longitude", "time_bnds", "grid_latitude_bnds", "grid_longitude_bnds"]}
         preds = []
         with logging_redirect_tqdm():
-            with tqdm(total=len(eval_dl.dataset), desc=f'Sampling', unit=' timesteps') as pbar:
-                for batch_num, (cond_batch, _) in enumerate(eval_dl):
+            with tqdm(total=len(xr_data_eval["time"]), desc=f'Sampling', unit=' timesteps') as pbar:
+                for i in range(0, xr_data_eval["time"].shape[0], batch_size):
+                    batch_times = xr_data_eval["time"][i:i+batch_size]
+                    batch_ds = xr_data_eval.sel(time=batch_times)
+
+                    cond_batch = XRDataset.to_tensor(batch_ds, variables)
                     # append any location-specific parameters
                     cond_batch = location_params(cond_batch)
-                    # typer.echo(f"Working on batch {batch_num}")
-                    time_idx_start = batch_num*eval_dl.batch_size
-                    coords = xr_data_eval.isel(time=slice(time_idx_start, time_idx_start+len(cond_batch))).coords
+
+                    coords = batch_ds.coords
 
                     preds.append(generate_predictions(sampling_fn, score_model, config, cond_batch, target_transform, coords, cf_data_vars))
 
