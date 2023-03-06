@@ -148,8 +148,8 @@ def main(workdir: Path, dataset: str = typer.Option(...), split: str = "val", ep
         preds = []
         with logging_redirect_tqdm():
             with tqdm(total=len(xr_data_eval["time"]), desc=f'Sampling', unit=' timesteps') as pbar:
-                for i in range(0, xr_data_eval["time"].shape[0], batch_size):
-                    batch_times = xr_data_eval["time"][i:i+batch_size]
+                for i in range(0, xr_data_eval["time"].shape[0], config.eval.batch_size):
+                    batch_times = xr_data_eval["time"][i:i+config.eval.batch_size]
                     batch_ds = xr_data_eval.sel(time=batch_times)
 
                     cond_batch = XRDataset.to_tensor(batch_ds, variables)
