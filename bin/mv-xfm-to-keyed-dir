@@ -28,7 +28,7 @@ def main():
         # move the transform
         input_xfm_glob = glob.glob(os.path.join(model_run_path, "transforms", "*", "input.pickle"))
         for input_xfm_path in input_xfm_glob:
-            new_xfm_path = input_xfm_path.sub("input.pickle", f"{input_xfm_key}/input.pickle")
+            new_xfm_path = input_xfm_path.replace("input.pickle", f"{input_xfm_key}/input.pickle")
             print(f("Moving {input_xfm_path} to {new_xfm_path}"))
             # shutil.move(input_xfm_path, new_xfm_path)
 
