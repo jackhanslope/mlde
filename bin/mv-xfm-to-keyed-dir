@@ -27,7 +27,10 @@ def main():
         model_run_config_path = os.path.join(model_run_path, "config.yml")
         with open(model_run_config_path) as f:
             config = config_dict.ConfigDict(yaml.unsafe_load(f))
-        input_xfm_key = config.data.input_transform_key
+        try:
+            input_xfm_key = config.data.input_transform_key
+        except AttributeError as ex:
+            input_xfm_key = "v1"
 
         # move the transform
         input_xfm_glob = glob.glob(os.path.join(model_run_path, "transforms", "*", "input.pickle"))
