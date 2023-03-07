@@ -29,7 +29,7 @@ def main():
         input_xfm_glob = glob.glob(os.path.join(model_run_path, "transforms", "*", "input.pickle"))
         for input_xfm_path in input_xfm_glob:
             new_xfm_path = input_xfm_path.replace("input.pickle", f"{input_xfm_key}/input.pickle")
-            print(f("Moving {input_xfm_path} to {new_xfm_path}"))
+            print(f"Moving {input_xfm_path} to {new_xfm_path}")
             # shutil.move(input_xfm_path, new_xfm_path)
 
         # move the samples
@@ -39,7 +39,7 @@ def main():
             existing_sample_splits_glob = glob.glob(os.path.join(sample_set_path, "*"))
             os.makedirs(new_sample_path, exist_ok=True)
             for sample_split_path in existing_sample_splits_glob:
-                print(f("Moving {sample_split_path} to {new_sample_path}"))
+                print(f"Moving {sample_split_path} to {new_sample_path}")
                 # shutil.move(sample_split_path, new_sample_path)
 
 
