@@ -22,6 +22,7 @@ def main():
         # skip the archive directory
         if model_run_path.endswith("archive"):
             continue
+        print(f"Working on {model_run_path}", flush=True)
         # extract input transform key from config
         model_run_config_path = os.path.join(model_run_path, "config.yml")
         with open(model_run_config_path) as f:
