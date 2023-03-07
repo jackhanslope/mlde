@@ -16,6 +16,7 @@ def main():
         "xarray_cncsnpp_continuous",
         "*"
     )
+    print(model_run_wildcard_path)
     model_run_glob = glob.glob(model_run_wildcard_path)
     for model_run_path in model_run_glob:
         # extract input transform key from config
