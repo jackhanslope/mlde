@@ -9,7 +9,7 @@ import typer
 
 app = typer.Typer()
 
-def sample_cmd(dataset, split, epoch, samples_per_job, workdir):
+def sample_cmd(dataset, split, epoch, samples_per_job, workdir, input_transform_key=None):
   sample_basecmd = ["python", f"bin/predict.py"]
 
   sample_opts = {
@@ -18,6 +18,9 @@ def sample_cmd(dataset, split, epoch, samples_per_job, workdir):
     "--dataset": dataset,
     "--split": split,
   }
+
+  if input_transform_key is not None:
+    sample_opts["--input-transform-key"] = input_transform_key
 
   return sample_basecmd + [arg for item in sample_opts.items() for arg in item] + [workdir]
 
@@ -39,7 +42,7 @@ def queue_cmd(depends_on, sampling_jobs, sampling_duration):
   return queue_basecmd + [arg for item in queue_opts.items() for arg in item]
 
 @app.command()
-def main(model_run_id: str, cpm_dataset: str, gcm_dataset: str, sde: str, split: str = "val", epoch: int = 100, depends_on: int = None):
+def main(model_run_id: str, cpm_dataset: str, gcm_dataset: str, sde: str, split: str = "val", epoch: int = 100, depends_on: int = None, input_transform_key: str = None):
 
   sampling_jobs=3
   samples_per_job=1
@@ -50,7 +53,7 @@ def main(model_run_id: str, cpm_dataset: str, gcm_dataset: str, sde: str, split:
   shared_queue_cmd = queue_cmd(depends_on, sampling_jobs, sampling_duration)
 
   # sample CPM
-  full_cmd = shared_queue_cmd + ["--"] + sample_cmd(cpm_dataset, split, epoch, samples_per_job, workdir)
+  full_cmd = shared_queue_cmd + ["--"] + sample_cmd(cpm_dataset, split, epoch, samples_per_job, workdir, input_transform_key)
   print(" ".join(full_cmd).strip(), file=sys.stderr)
   output = subprocess.run(full_cmd, capture_output=True)
   print(output.stderr.decode("utf8").strip(), file=sys.stderr)
