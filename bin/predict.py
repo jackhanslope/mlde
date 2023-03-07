@@ -121,13 +121,15 @@ def load_config(config_path):
 @app.command()
 @Timer(name="sample", text="{name}: {minutes:.1f} minutes", logger=logger.info)
 @slack_sender(webhook_url=os.getenv("KK_SLACK_WH_URL"), channel="general")
-def main(workdir: Path, dataset: str = typer.Option(...), split: str = "val", epoch: int = typer.Option(...), batch_size: int = None, num_samples: int = 3):
+def main(workdir: Path, dataset: str = typer.Option(...), split: str = "val", epoch: int = typer.Option(...), batch_size: int = None, num_samples: int = 3, input_transform_key: str = None):
     config_path = os.path.join(workdir, "config.yml")
     config = load_config(config_path)
     if batch_size is not None:
         config.eval.batch_size = batch_size
+    if input_transform_key is not None:
+        config.data.input_transform_key = input_transform_key
 
-    output_dirpath = workdir/"samples"/f"epoch-{epoch}"/dataset/split
+    output_dirpath = workdir/"samples"/f"epoch-{epoch}"/dataset/config.data.input_transform_key/split
     os.makedirs(output_dirpath, exist_ok=True)
 
     ckpt_filename = os.path.join(workdir, "checkpoints", f"epoch_{epoch}.pth")
