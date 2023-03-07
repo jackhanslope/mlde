@@ -20,7 +20,7 @@ def main():
     model_run_glob = glob.glob(model_run_wildcard_path)
     for model_run_path in model_run_glob:
         # skip the archive directory
-        if model_run_config_path.endswith("archive"):
+        if model_run_path.endswith("archive"):
             continue
         # extract input transform key from config
         model_run_config_path = os.path.join(model_run_path, "config.yml")
