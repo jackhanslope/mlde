@@ -36,6 +36,7 @@ def main():
         input_xfm_glob = glob.glob(os.path.join(model_run_path, "transforms", "*", "input.pickle"))
         for input_xfm_path in input_xfm_glob:
             new_xfm_path = input_xfm_path.replace("input.pickle", f"{input_xfm_key}/input.pickle")
+            os.makedirs(os.path.dirname(new_sample_path), exist_ok=True)
             print(f"Moving {input_xfm_path} to {new_xfm_path}")
             shutil.move(input_xfm_path, new_xfm_path)
 
