@@ -14,7 +14,7 @@ def train_cmd(sde, dataset, workdir, config_overrides=list):
     train_basecmd = ["python", f"bin/main.py"]
 
     train_opts = {
-        "--config": f"src/score_sde_pytorch_hja22/configs/{sde}/xarray_cncsnpp_continuous.py",
+        "--config": f"src/ml_downscaling_emulator/score_sde_pytorch_hja22/configs/{sde}/xarray_cncsnpp_continuous.py",
         "--workdir": workdir,
         "--mode": "train",
     }
