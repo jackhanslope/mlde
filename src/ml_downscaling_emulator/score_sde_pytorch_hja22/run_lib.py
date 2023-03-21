@@ -43,7 +43,7 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 from torch.utils.tensorboard import SummaryWriter
 from .utils import save_checkpoint, restore_checkpoint
 
-from mlde_utils.torch import get_dataloader
+from ml_downscaling_emulator.torch import get_dataloader
 
 FLAGS = flags.FLAGS
 

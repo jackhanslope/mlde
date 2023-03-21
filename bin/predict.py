@@ -13,7 +13,7 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 import xarray as xr
 import yaml
 
-from mlde_utils.torch import XRDataset
+from ml_downscaling_emulator.torch import XRDataset
 from mlde_utils.training.dataset import get_dataset, get_variables
 
 from ml_downscaling_emulator.score_sde_pytorch_hja22.losses import get_optimizer

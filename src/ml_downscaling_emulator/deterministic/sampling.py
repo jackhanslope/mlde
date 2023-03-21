@@ -4,7 +4,7 @@ from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 import xarray as xr
 
-from mlde_utils.torch import XRDataset
+from ml_downscaling_emulator.torch import XRDataset
 
 
 def generate_np_samples(model, cond_batch):
