@@ -4,7 +4,7 @@
 
 1. Create conda environment: `conda env create -f environment.lock.yml`
 1. Install ml_downscaling_emulator locally: `pip install -e .`
-1. Install unet code: `gh repo clone henryaddison/Pytorch-UNet src/ml_downscaling_emulator/unet`
+1. Install unet code: `git clone --depth 1 git@github.com:henryaddison/Pytorch-UNet src/ml_downscaling_emulator/unet`
 
 
 # Score-Based Generative Modeling through Stochastic Differential Equations
