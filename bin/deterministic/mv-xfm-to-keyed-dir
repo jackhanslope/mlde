@@ -10,12 +10,7 @@ import yaml
 
 def main():
     model_run_wildcard_path = os.path.join(
-        os.getenv("DERIVED_DATA"),
-        "workdirs",
-        "score-sde",
-        "*",
-        "xarray_cncsnpp_continuous",
-        "*",
+        os.getenv("DERIVED_DATA"), "workdirs", "u-net", "*"
     )
     print(model_run_wildcard_path)
     model_run_glob = glob.glob(model_run_wildcard_path)
@@ -29,7 +24,7 @@ def main():
         with open(model_run_config_path) as f:
             config = config_dict.ConfigDict(yaml.unsafe_load(f))
         try:
-            input_xfm_key = config.data.input_transform_key
+            input_xfm_key = config["input_transform_key"]
         except AttributeError:
             input_xfm_key = "v1"
 

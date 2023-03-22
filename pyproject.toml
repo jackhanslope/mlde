@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "score_sde_pytorch_hja22"
+name = "ml_downscaling_emulator"
 version = "0.0.1"
 authors = [
   { name="Henry Addison", email="henry.addison@bristol.ac.uk" },
@@ -20,3 +20,10 @@ classifiers = [
 [project.urls]
 "Homepage" = "https://github.com/henryaddison/score_sde_pytorch"
 "Bug Tracker" = "https://github.com/henryaddison/score_sde_pytorch/issues"
+
+[project.scripts]
+    mlde = "ml_downscaling_emulator.bin:app"
+
+
+[tool.black]
+extend-exclude = '^/src/ml_downscaling_emulator/score_sde_pytorch_hja22/'
