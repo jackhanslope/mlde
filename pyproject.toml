@@ -23,3 +23,7 @@ classifiers = [
 
 [project.scripts]
     mlde = "ml_downscaling_emulator.bin:app"
+
+
+[tool.black]
+extend-exclude = '^/src/ml_downscaling_emulator/score_sde_pytorch_hja22/'
