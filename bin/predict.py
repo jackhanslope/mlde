@@ -249,7 +249,7 @@ def main(
                     batch_times = xr_data_eval["time"][i : i + config.eval.batch_size]
                     batch_ds = xr_data_eval.sel(time=batch_times)
 
-                    cond_batch = XRDataset.to_tensor(batch_ds, variables)
+                    cond_batch = XRDataset.variables_to_tensor(batch_ds, variables)
                     # append any location-specific parameters
                     cond_batch = location_params(cond_batch)
 

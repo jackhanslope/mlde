@@ -1,31 +1,79 @@
+import cftime
 import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
 
 from mlde_utils.training.dataset import get_dataset, get_variables
 
+TIME_RANGE = (
+    cftime.Datetime360Day(1980, 12, 1, 12, 0, 0, 0, has_year_zero=True),
+    cftime.Datetime360Day(2080, 11, 30, 12, 0, 0, 0, has_year_zero=True),
+)
+
 
 class XRDataset(Dataset):
-    def __init__(self, ds, variables, target_variables):
+    def __init__(self, ds, variables, target_variables, time_range):
         self.ds = ds
         self.variables = variables
         self.target_variables = target_variables
+        self.time_range = time_range
 
     @classmethod
-    def to_tensor(cls, ds, variables):
+    def variables_to_tensor(cls, ds, variables):
         return torch.tensor(
             # stack features before lat-lon (HW)
             np.stack([ds[var].values for var in variables], axis=-3)
         ).float()
+
+    @classmethod
+    def time_to_tensor(cls, ds, shape, time_range):
+        climate_time = np.array(ds["time"] - time_range[0]) / np.array(
+            [time_range[1] - time_range[0]], dtype=np.dtype("timedelta64[ns]")
+        )
+        season_time = ds["time.dayofyear"].values / 360
+
+        return (
+            torch.stack(
+                [
+                    torch.tensor(climate_time).broadcast_to(
+                        (climate_time.shape[0], *shape[-2:])
+                    ),
+                    torch.sin(
+                        2
+                        * np.pi
+                        * torch.tensor(season_time).broadcast_to(
+                            (climate_time.shape[0], *shape[-2:])
+                        )
+                    ),
+                    torch.cos(
+                        2
+                        * np.pi
+                        * torch.tensor(season_time).broadcast_to(
+                            (climate_time.shape[0], *shape[-2:])
+                        )
+                    ),
+                ],
+                dim=-3,
+            )
+            .squeeze()
+            .float()
+        )
 
     def __len__(self):
         return len(self.ds.time)
 
     def __getitem__(self, idx):
         subds = self.ds.isel(time=idx)
-        cond = self.to_tensor(subds, self.variables)
-        x = self.to_tensor(subds, self.target_variables)
-        return cond, x
+
+        cond_var = self.variables_to_tensor(subds, self.variables)
+        cond_time = self.time_to_tensor(subds, cond_var.shape, self.time_range)
+        cond = torch.cat([cond_var, cond_time])
+
+        x = self.variables_to_tensor(subds, self.target_variables)
+
+        time = subds["time"].values.reshape(-1)
+
+        return cond, x, time
 
 
 def get_dataloader(
@@ -37,6 +85,7 @@ def get_dataloader(
     batch_size,
     split,
     evaluation=False,
+    shuffle=True,
 ):
     """Create data loaders for given split.
 
@@ -65,7 +114,16 @@ def get_dataloader(
 
     variables, target_variables = get_variables(model_src_dataset_name)
 
-    xr_dataset = XRDataset(xr_data, variables, target_variables)
-    data_loader = DataLoader(xr_dataset, batch_size=batch_size, shuffle=True)
+    def custom_collate(batch):
+        from torch.utils.data import default_collate
+
+        return *default_collate([(e[0], e[1]) for e in batch]), np.concatenate(
+            [e[2] for e in batch]
+        )
+
+    xr_dataset = XRDataset(xr_data, variables, target_variables, TIME_RANGE)
+    data_loader = DataLoader(
+        xr_dataset, batch_size=batch_size, shuffle=shuffle, collate_fn=custom_collate
+    )
 
     return data_loader, transform, target_transform

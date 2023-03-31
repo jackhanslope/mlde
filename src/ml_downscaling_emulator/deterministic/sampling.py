@@ -66,7 +66,7 @@ def sample(model, xr_data_eval, batch_size, variables, target_transform):
                     batch_times = xr_data_eval["time"][i : i + batch_size]
                     batch_ds = xr_data_eval.sel(time=batch_times)
 
-                    cond_batch = XRDataset.to_tensor(batch_ds, variables)
+                    cond_batch = XRDataset.variables_to_tensor(batch_ds, variables)
 
                     batch_np_samples = generate_np_samples(model, cond_batch)
                     np_samples.append(batch_np_samples)
