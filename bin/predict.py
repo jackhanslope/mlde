@@ -13,8 +13,8 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 import xarray as xr
 import yaml
 
-from ml_downscaling_emulator.torch import XRDataset
-from mlde_utils.training.dataset import get_dataset, get_variables
+from ml_downscaling_emulator.torch import get_dataloader
+from mlde_utils.training.dataset import get_variables
 
 from ml_downscaling_emulator.score_sde_pytorch_hja22.losses import get_optimizer
 from ml_downscaling_emulator.score_sde_pytorch_hja22.models.ema import (
@@ -216,7 +216,7 @@ def main(
     transform_dir = os.path.join(workdir, "transforms")
 
     # Data
-    xr_data_eval, _, target_transform = get_dataset(
+    eval_dl, _, target_transform = get_dataloader(
         dataset,
         config.data.dataset_name,
         config.data.input_transform_key,
@@ -224,13 +224,14 @@ def main(
         transform_dir,
         split=split,
         evaluation=True,
+        batch_size=config.eval.batch_size,
+        shuffle=False,
     )
-    variables, _ = get_variables(config.data.dataset_name)
 
     for sample_id in range(num_samples):
         typer.echo(f"Sample run {sample_id}...")
         cf_data_vars = {
-            key: xr_data_eval.data_vars[key]
+            key: eval_dl.dataset.ds.data_vars[key]
             for key in [
                 "rotated_latitude_longitude",
                 "time_bnds",
@@ -241,19 +242,15 @@ def main(
         preds = []
         with logging_redirect_tqdm():
             with tqdm(
-                total=len(xr_data_eval["time"]), desc=f"Sampling", unit=" timesteps"
+                total=len(eval_dl.dataset.ds["time"]),
+                desc=f"Sampling",
+                unit=" timesteps",
             ) as pbar:
-                for i in range(
-                    0, xr_data_eval["time"].shape[0], config.eval.batch_size
-                ):
-                    batch_times = xr_data_eval["time"][i : i + config.eval.batch_size]
-                    batch_ds = xr_data_eval.sel(time=batch_times)
-
-                    cond_batch = XRDataset.variables_to_tensor(batch_ds, variables)
+                for cond_batch, _, time_batch in eval_dl:
                     # append any location-specific parameters
                     cond_batch = location_params(cond_batch)
 
-                    coords = batch_ds.coords
+                    coords = eval_dl.dataset.ds.sel(time=time_batch).coords
 
                     preds.append(
                         generate_predictions(

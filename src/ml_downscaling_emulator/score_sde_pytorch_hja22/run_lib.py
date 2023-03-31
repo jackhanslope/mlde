@@ -49,7 +49,7 @@ FLAGS = flags.FLAGS
 
 def val_loss(config, eval_ds, eval_step_fn, state):
   val_set_loss = 0.0
-  for eval_cond_batch, eval_x_batch in eval_ds:
+  for eval_cond_batch, eval_x_batch, eval_time_batch in eval_ds:
     # eval_cond_batch, eval_x_batch = next(iter(eval_ds))
     eval_x_batch = eval_x_batch.to(config.device)
     eval_cond_batch = eval_cond_batch.to(config.device)
@@ -155,7 +155,7 @@ def train(config, workdir):
     state['epoch'] = epoch
     with logging_redirect_tqdm():
       with tqdm(total=len(train_dl.dataset), desc=f'Epoch {epoch}', unit=' timesteps') as pbar:
-        for cond_batch, x_batch in train_dl:
+        for cond_batch, x_batch, time_batch in train_dl:
 
           x_batch = x_batch.to(config.device)
           cond_batch = cond_batch.to(config.device)
