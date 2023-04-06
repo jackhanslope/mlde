@@ -204,6 +204,10 @@ def main(
     )
     os.makedirs(output_dirpath, exist_ok=True)
 
+    sampling_config_path = os.path.join(output_dirpath, "config.yml")
+    with open(sampling_config_path, "w") as f:
+        f.write(config.to_yaml())
+
     ckpt_filename = os.path.join(workdir, "checkpoints", f"epoch_{epoch}.pth")
     logger.info(f"Loading model from {ckpt_filename}")
     state, sampling_fn = load_model(config, ckpt_filename)
