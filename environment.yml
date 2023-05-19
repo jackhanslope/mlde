@@ -36,4 +36,5 @@ dependencies:
   - xarray
   - pip:
     - flufl-lock
+    - python-cmethods
 prefix: /home/henry/miniconda3/envs/cuda-downscaling

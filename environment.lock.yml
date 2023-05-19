@@ -215,7 +215,6 @@ dependencies:
   - munkres=1.1.4=pyh9f0ad1d_0
   - mypy_extensions=0.4.3=py39hf3d152e_6
   - ncurses=6.3=h27087fc_1
-  - netcdf4=1.6.0=nompi_py39h94a714e_103
   - nettle=3.6=he412f7d_0
   - ninja=1.11.0=h924138e_0
   - nodeenv=1.7.0=pyhd8ed1ab_0
@@ -365,4 +364,6 @@ dependencies:
   - pip:
       - atpublic==3.1.1
       - flufl-lock==7.1.1
+      - netcdf4==1.6.3
+      - python-cmethods==1.0.1
 prefix: /home/henry/miniconda3/envs/cuda-downscaling
