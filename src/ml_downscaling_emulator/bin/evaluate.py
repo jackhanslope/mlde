@@ -1,4 +1,6 @@
+from typing import List
 from codetiming import Timer
+import glob
 import logging
 import os
 from pathlib import Path
@@ -6,6 +8,7 @@ from knockknock import slack_sender
 import shortuuid
 import torch
 import typer
+import xarray as xr
 import yaml
 
 from ..deterministic import sampling
@@ -130,3 +133,31 @@ def sample_id(
         logger.info(f"Saving predictions to {output_filepath}")
         os.makedirs(output_dirpath, exist_ok=True)
         predictions.to_netcdf(output_filepath)
+
+
+@app.command()
+def merge(
+    input_dirs: List[Path],
+    output_dir: Path,
+):
+    pred_file_globs = [
+        glob.glob(os.path.join(samples_dir, "*.nc")) for samples_dir in input_dirs
+    ]
+    # there should be the same number of samples in each input dir
+    assert 1 == len(set(map(len, pred_file_globs)))
+
+    for pred_file_group in zip(*pred_file_globs):
+        typer.echo(f"Concat {pred_file_group}")
+
+        # take a bit of the random id in each sample file's name
+        random_ids = [fn[-25:-20] for fn in pred_file_group]
+        # join those partial random ids together for the output filepath in the train directory (rather than one of the subset train dirs)
+        output_filepath = os.path.join(
+            output_dir, f"predictions-{'-'.join(random_ids)}.nc"
+        )
+
+        typer.echo(f"save to {output_filepath}")
+        os.makedirs(os.path.dirname(output_filepath), exist_ok=True)
+        xr.concat([xr.open_dataset(f) for f in pred_file_group], dim="time").to_netcdf(
+            output_filepath
+        )
