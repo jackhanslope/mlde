@@ -16,4 +16,4 @@ set +x
 src="/user/work/vf20964/moose/nc-datasets"
 dest="xfer1.jasmin:/gws/nopw/j04/bris_climdyn/henrya/bp-backups/moose"
 
-rsync -avhz --include='/*/' --exclude='archive/' ${src} ${dest}
+rsync -avhz --include='/*/' ${src} ${dest}
