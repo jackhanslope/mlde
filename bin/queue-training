@@ -33,7 +33,7 @@ def queue_cmd(training_duration):
     queue_opts = {
         "-a": os.getenv("HPC_PROJECT_CODE"),
         "-g": "1",
-        "-m": "96",
+        "-m": "256",
         "-q": "gpu,cnu",
         "-t": str(training_duration),
         "--condaenv": "cuda-downscaling",
