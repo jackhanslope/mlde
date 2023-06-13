@@ -77,7 +77,7 @@ def get_dataloader(
 
     variables, target_variables = get_variables(model_src_dataset_name)
 
-    xr_dataset = XRDataset(xr_data, variables, target_variables)
+    xr_dataset = EMXRDataset(xr_data, variables, target_variables)
     data_loader = DataLoader(xr_dataset, batch_size=batch_size, shuffle=True)
 
     return data_loader, transform, target_transform
