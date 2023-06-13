@@ -28,6 +28,18 @@ class XRDataset(Dataset):
         return cond, x
 
 
+class EMXRDataset(XRDataset):
+    def __len__(self):
+        return len(self.ds.time) * len(self.ds.ensemble_member)
+
+    def __getitem__(self, idx):
+        em_idx, time_idx = divmod(idx, len(self.ds.time))
+        subds = self.ds.isel(time=time_idx, ensemble_member=em_idx)
+        cond = self.to_tensor(subds, self.variables)
+        x = self.to_tensor(subds, self.target_variables)
+        return cond, x
+
+
 def get_dataloader(
     active_dataset_name,
     model_src_dataset_name,
