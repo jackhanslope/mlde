@@ -3,9 +3,9 @@
 set -euo pipefail
 
 config_name="xarray_cunet_continuous"
-dataset="bham_gcmx-4x_spechum-temp-vort_random"
+dataset="bham_gcmx-4x_2em_psl-temp-vort_random"
 
-sde="vesde"
+sde="subvpsde"
 workdir="output/test/${sde}/${config_name}"
 config_path="src/ml_downscaling_emulator/score_sde_pytorch_hja22/configs/${sde}/${config_name}.py"
 
