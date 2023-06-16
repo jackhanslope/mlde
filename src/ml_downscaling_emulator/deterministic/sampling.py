@@ -35,7 +35,7 @@ def np_samples_to_xr(samples, xr_eval_ds, target_transform):
         ]
     }
 
-    pred_pr_dims = ["time", "grid_latitude", "grid_longitude"]
+    pred_pr_dims = ["ensemble_member", "time", "grid_latitude", "grid_longitude"]
     pred_pr_attrs = {
         "grid_mapping": "rotated_latitude_longitude",
         "standard_name": "pred_pr",
