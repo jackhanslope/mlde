@@ -32,6 +32,21 @@ def fix_file(nc_filepath):
 
     ds.to_netcdf(new_filepath)
 
+    ds = xr.open_dataset(new_filepath)
+    assert list(ds["pred_pr"].dims) == [
+        "ensemble_member",
+        "time",
+        "grid_latitude",
+        "grid_longitude",
+    ], list(ds["pred_pr"].dims)
+    assert ds["pred_pr"].shape[0] == 1
+    assert ds["pred_pr"].shape[1] > 0
+    assert ds["pred_pr"].shape[2] == 64
+    assert ds["pred_pr"].shape[3] == 64
+    assert ds["pred_pr"].isnull().sum().values.item() == 0
+    logger.info(f"Removing original prediction file: {nc_filepath}")
+    os.remove(nc_filepath)
+
 
 def main():
     models_glob = os.path.join(
