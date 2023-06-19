@@ -48,6 +48,7 @@ def get_dataloader(
     transform_dir,
     batch_size,
     split,
+    ensemble_members,
     evaluation=False,
 ):
     """Create data loaders for given split.
@@ -72,6 +73,7 @@ def get_dataloader(
         target_transform_key,
         transform_dir,
         split,
+        ensemble_members,
         evaluation,
     )
 

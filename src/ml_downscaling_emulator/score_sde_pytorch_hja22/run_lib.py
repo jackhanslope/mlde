@@ -44,6 +44,7 @@ from torch.utils.tensorboard import SummaryWriter
 from .utils import save_checkpoint, restore_checkpoint
 
 from ml_downscaling_emulator.torch import get_dataloader
+from mlde_utils import DatasetMetadata
 from mlde_utils.training import log_epoch, track_run
 
 FLAGS = flags.FLAGS
@@ -108,8 +109,9 @@ def train(config, workdir):
         EXPERIMENT_NAME, run_name, run_config, ["score_sde"], tb_dir
     ) as (wandb_run, writer):
     # Build dataloaders
-    train_dl, _, _ = get_dataloader(config.data.dataset_name, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.training.batch_size, split="train", evaluation=False)
-    eval_dl, _, _ = get_dataloader(config.data.dataset_name, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.training.batch_size, split="val", evaluation=False)
+    dataset_meta = DatasetMetadata(config.data.dataset_name)
+    train_dl, _, _ = get_dataloader(config.data.dataset_name, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.training.batch_size, split="train", ensemble_members=dataset_meta.ensemble_members(), evaluation=False)
+    eval_dl, _, _ = get_dataloader(config.data.dataset_name, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.training.batch_size, split="val", ensemble_members=dataset_meta.ensemble_members(), evaluation=False)
 
     # Initialize model.
     score_model = mutils.create_model(config)
