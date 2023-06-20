@@ -128,7 +128,9 @@ def sample_id(
     )
     os.makedirs(output_dirpath, exist_ok=True)
 
-    eval_ds = load_raw_dataset_split(dataset, split)
+    eval_ds = load_raw_dataset_split(dataset, split).sel(
+        ensemble_member=[ensemble_member]
+    )
     samples = eval_ds[variable].values
     predictions = sampling.np_samples_to_xr(samples, eval_ds, target_transform=None)
 
