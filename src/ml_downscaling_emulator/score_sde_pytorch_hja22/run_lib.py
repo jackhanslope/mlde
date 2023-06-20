@@ -45,7 +45,7 @@ from .utils import save_checkpoint, restore_checkpoint
 
 from ml_downscaling_emulator.torch import get_dataloader
 from mlde_utils import DatasetMetadata
-from mlde_utils.training import log_epoch, track_run
+from ml_downscaling_emulator.training import log_epoch, track_run
 
 FLAGS = flags.FLAGS
 

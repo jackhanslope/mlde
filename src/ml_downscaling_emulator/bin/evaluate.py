@@ -13,7 +13,7 @@ import yaml
 
 from ..deterministic import sampling
 from mlde_utils import samples_path
-from mlde_utils.training import restore_checkpoint
+from ..deterministic.utils import restore_checkpoint
 from mlde_utils.training.dataset import (
     get_variables,
     get_dataset,

@@ -12,7 +12,8 @@ import typer
 import yaml
 
 from ml_downscaling_emulator.unet import unet
-from mlde_utils.training import log_epoch, track_run, save_checkpoint
+from ml_downscaling_emulator.training import log_epoch, track_run
+from ml_downscaling_emulator.deterministic.utils import save_checkpoint
 from ml_downscaling_emulator.torch import get_dataloader
 
 UNET_ARCHNAME = "u-net"
