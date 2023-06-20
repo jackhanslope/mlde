@@ -70,6 +70,7 @@ def main():
 
     id_linpr_models_glob = os.path.join(
         os.getenv("DERIVED_DATA"),
+        "workdirs",
         "id-linpr",  # model name
     )
 
