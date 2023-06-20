@@ -12,6 +12,7 @@ import xarray as xr
 import yaml
 
 from ..deterministic import sampling
+from mlde_utils import samples_path
 from mlde_utils.training import restore_checkpoint
 from mlde_utils.training.dataset import (
     get_variables,
@@ -114,25 +115,27 @@ def sample_id(
     dataset: str = typer.Option(...),
     variable: str = "pr",
     split: str = "val",
-    num_samples: int = 1,
+    ensemble_member: str = "01",
 ):
 
-    output_dirpath = workdir / "samples" / "epoch-0" / dataset / split
+    output_dirpath = samples_path(
+        workdir=workdir,
+        checkpoint="epoch-0",
+        input_xfm="none",
+        dataset=dataset,
+        split=split,
+        ensemble_member=ensemble_member,
+    )
     os.makedirs(output_dirpath, exist_ok=True)
 
-    for sample_id in range(num_samples):
-        typer.echo(f"Sample run {sample_id}...")
-        eval_ds = load_raw_dataset_split(dataset, split)
-        samples = eval_ds[variable].values
-        predictions = sampling.np_samples_to_xr(samples, eval_ds, target_transform=None)
+    eval_ds = load_raw_dataset_split(dataset, split)
+    samples = eval_ds[variable].values
+    predictions = sampling.np_samples_to_xr(samples, eval_ds, target_transform=None)
 
-        output_filepath = os.path.join(
-            output_dirpath, f"predictions-{shortuuid.uuid()}.nc"
-        )
+    output_filepath = os.path.join(output_dirpath, f"predictions-{shortuuid.uuid()}.nc")
 
-        logger.info(f"Saving predictions to {output_filepath}")
-        os.makedirs(output_dirpath, exist_ok=True)
-        predictions.to_netcdf(output_filepath)
+    logger.info(f"Saving predictions to {output_filepath}")
+    predictions.to_netcdf(output_filepath)
 
 
 @app.command()
