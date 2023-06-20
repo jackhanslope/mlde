@@ -30,6 +30,9 @@ def fix_file(nc_filepath):
     new_filepath = os.path.join(dirpath, "01", filename)
     os.makedirs(os.path.dirname(new_filepath), exist_ok=True)
 
+    if "sample_id" in ds.dims:
+        ds = ds.squeeze(dim="sample_id")
+
     ds.to_netcdf(new_filepath)
 
     ds = xr.open_dataset(new_filepath)
