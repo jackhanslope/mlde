@@ -4,6 +4,7 @@
 import glob
 import logging
 import os
+import shutil
 import xarray as xr
 
 logger = logging.getLogger(__name__)
@@ -95,6 +96,23 @@ def main():
         sample_filepaths = glob.glob(samples_glob)
         for sample_filepath in sample_filepaths:
             fix_file(sample_filepath)
+
+        sample_config_files_glob = os.path.join(
+            model_dir,
+            "samples",
+            "*",  # checkpoint
+            "*",  # dataset
+            "*",  # input_xfm
+            "*",  # split
+            "config.yml",
+        )
+
+        for sample_config_filepath in glob.glob(sample_config_files_glob):
+            dirpath, filename = os.path.split(sample_config_filepath)
+            new_filepath = os.path.join(dirpath, "01", filename)
+            os.makedirs(os.path.dirname(new_filepath), exist_ok=True)
+            logger.info(f"moving config {sample_config_filepath} to {new_filepath}")
+            shutil.move(sample_config_filepath, new_filepath)
 
 
 if __name__ == "__main__":
