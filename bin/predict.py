@@ -117,7 +117,8 @@ def load_model(config, ckpt_filename):
         ema=ema,
     )
 
-    state = restore_checkpoint(ckpt_filename, state, config.device)
+    state, loaded = restore_checkpoint(ckpt_filename, state, config.device)
+    assert loaded, "Did not load state from checkpoint"
     ema.copy_to(score_model.parameters())
 
     # Sampling

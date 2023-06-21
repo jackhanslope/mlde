@@ -130,7 +130,7 @@ def train(config, workdir):
     os.makedirs(checkpoint_dir, exist_ok=True)
     os.makedirs(os.path.dirname(checkpoint_meta_dir), exist_ok=True)
     # Resume training when intermediate checkpoints are detected
-    state = restore_checkpoint(checkpoint_meta_dir, state, config.device)
+    state, loaded = restore_checkpoint(checkpoint_meta_dir, state, config.device)
     initial_epoch = int(state['epoch'])
 
     # Setup SDEs
