@@ -198,12 +198,12 @@ def main(
         config.data.input_transform_key = input_transform_key
 
     output_dirpath = samples_path(
-        workdir,
-        f"epoch-{epoch}",
-        dataset,
-        config.data.input_transform_key,
-        split,
-        ensemble_member,
+        workdir=workdir,
+        checkpoint=f"epoch-{epoch}",
+        dataset=dataset,
+        input_xfm=config.data.input_transform_key,
+        split=split,
+        ensemble_member=ensemble_member,
     )
     os.makedirs(output_dirpath, exist_ok=True)
 

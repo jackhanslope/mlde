@@ -120,9 +120,9 @@ def sample_id(
 
     output_dirpath = samples_path(
         workdir=workdir,
-        checkpoint="epoch-0",
-        input_xfm="none",
+        checkpoint=f"epoch-0",
         dataset=dataset,
+        input_xfm="none",
         split=split,
         ensemble_member=ensemble_member,
     )
