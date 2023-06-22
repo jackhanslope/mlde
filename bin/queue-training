@@ -52,7 +52,7 @@ def main(ctx: typer.Context, model_run_id: str, cpm_dataset: str, sde: str):
     # Add any other config on the commandline for training
     # --config.data.input_transform_key=spatial
 
-    training_duration = 36
+    training_duration = 72
 
     workdir = f"{os.getenv('DERIVED_DATA')}/workdirs/score-sde/{sde}/xarray_cncsnpp_continuous/{model_run_id}"
 
