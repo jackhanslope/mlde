@@ -184,9 +184,6 @@ def train(config, workdir):
               x_batch = cropped[:,:x_ch]
               cond_batch = cropped[:,x_ch:]
 
-            # Convert data to JAX arrays and normalize them. Use ._numpy() to avoid copy.
-            # batch = torch.from_numpy(next(train_iter)['image']._numpy()).to(config.device).float()
-            # batch = batch.permute(0, 3, 1, 2)
             # Execute one training step
             loss = train_step_fn(state, x_batch, cond_batch)
             train_set_loss += loss.item()
