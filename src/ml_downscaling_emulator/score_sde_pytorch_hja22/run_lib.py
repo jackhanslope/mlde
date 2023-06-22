@@ -131,7 +131,7 @@ def train(config, workdir):
     os.makedirs(os.path.dirname(checkpoint_meta_dir), exist_ok=True)
     # Resume training when intermediate checkpoints are detected
     state, _ = restore_checkpoint(checkpoint_meta_dir, state, config.device)
-    initial_epoch = int(state['epoch'])
+    initial_epoch = int(state['epoch'])+1 # start from the epoch after the one currently reached
 
     # Setup SDEs
     if config.training.sde.lower() == 'vpsde':
