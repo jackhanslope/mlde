@@ -27,13 +27,13 @@ def train_cmd(sde, dataset, workdir, config, config_overrides=list):
     )
 
 
-def queue_cmd(duration):
+def queue_cmd(duration, memory):
     queue_basecmd = ["lbatch"]
 
     queue_opts = {
         "-a": os.getenv("HPC_PROJECT_CODE"),
         "-g": "1",
-        "-m": "256",
+        "-m": str(memory),
         "-q": "cnu,gpu",
         "-t": str(duration),
         "--condaenv": "cuda-downscaling",
@@ -54,6 +54,7 @@ def main(
     cpm_dataset: str,
     sde: str,
     config: str = "xarray_cncsnpp_continuous",
+    memory: int = 64,
     duration: int = 72,
 ):
     # Add any other config on the commandline for training
@@ -64,7 +65,7 @@ def main(
     )
 
     full_cmd = (
-        queue_cmd(duration)
+        queue_cmd(duration=duration, memory=memory)
         + ["--"]
         + train_cmd(sde, cpm_dataset, workdir, config, ctx.args)
     )
