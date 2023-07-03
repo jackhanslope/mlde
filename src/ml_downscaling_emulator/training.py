@@ -6,7 +6,9 @@ def log_epoch(epoch, epoch_metrics, wandb_run, tb_writer):
     import mlflow
 
     logging.info(
-        f"epoch {epoch}, train_loss: {epoch_metrics['epoch/train/loss']:.5e} val_loss {epoch_metrics['epoch/val/loss']:.5e}"
+        " ".join(
+            [f"epoch {epoch},"] + [f"{k}: {v:.5e}" for k, v in epoch_metrics.items()]
+        )
     )
 
     wandb_run.log(epoch_metrics)

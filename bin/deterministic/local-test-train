@@ -4,8 +4,8 @@ set -euo pipefail
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
-cpm_dataset="bham_gcmx-4x_spechum-temp-vort_random"
-gcm_dataset="bham_60km-4x_spechum-temp-vort_random"
+cpm_dataset="bham_gcmx-4x_psl-temp4th-vort4th_eqvt_random-season"
+gcm_dataset="bham_60km-4x_psl-temp4th-vort4th_eqvt_random-season"
 workdir="output/test/unet"
 
 map_features=1

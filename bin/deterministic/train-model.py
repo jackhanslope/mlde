@@ -11,6 +11,8 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 import typer
 import yaml
 
+from mlde_utils import DatasetMetadata
+
 from ml_downscaling_emulator.unet import unet
 from ml_downscaling_emulator.training import log_epoch, track_run
 from ml_downscaling_emulator.deterministic.utils import save_checkpoint
@@ -95,6 +97,8 @@ def main(
     device = torch.device(run_config["device"])
     logging.info(f"Using device {device}")
 
+    dataset_meta = DatasetMetadata(dataset)
+
     # Build dataloaders
     train_dl, _, _ = get_dataloader(
         dataset,
@@ -104,6 +108,7 @@ def main(
         transform_dir,
         batch_size=batch_size,
         split="train",
+        ensemble_members=dataset_meta.ensemble_members(),
         evaluation=False,
     )
     val_dl, _, _ = get_dataloader(
@@ -114,6 +119,7 @@ def main(
         transform_dir,
         batch_size=batch_size,
         split="val",
+        ensemble_members=dataset_meta.ensemble_members(),
         evaluation=False,
     )
 
@@ -265,7 +271,10 @@ def main(
                 val_set_loss += val_batch_loss.item()
                 val_set_loss = val_set_loss / len(val_dl)
 
-            epoch_metrics = {"train/loss": train_set_loss, "val/loss": val_set_loss}
+            epoch_metrics = {
+                "epoch/train/loss": train_set_loss,
+                "epoch/val/loss": val_set_loss,
+            }
             log_epoch(epoch, epoch_metrics, wandb_run, tb_writer)
             # Checkpoint model
             if (epoch != 0 and epoch % snapshot_freq == 0) or epoch == epochs:
