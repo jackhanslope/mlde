@@ -63,7 +63,7 @@ class XRDataset(Dataset):
         return len(self.ds.time)
 
     def __getitem__(self, idx):
-        subds = self.ds.isel(time=idx)
+        subds = self.sel(idx)
 
         cond_var = self.variables_to_tensor(subds, self.variables)
         cond_time = self.time_to_tensor(subds, cond_var.shape, self.time_range)
@@ -75,6 +75,33 @@ class XRDataset(Dataset):
 
         return cond, x, time
 
+    def sel(self, idx):
+        return self.ds.isel(time=idx)
+
+
+class EMXRDataset(XRDataset):
+    def __len__(self):
+        return len(self.ds.time) * len(self.ds.ensemble_member)
+
+    def sel(self, idx):
+        em_idx, time_idx = divmod(idx, len(self.ds.time))
+        return self.ds.isel(time=time_idx, ensemble_member=em_idx)
+
+
+def build_dataloader(xr_data, variables, target_variables, batch_size, shuffle):
+    def custom_collate(batch):
+        from torch.utils.data import default_collate
+
+        return *default_collate([(e[0], e[1]) for e in batch]), np.concatenate(
+            [e[2] for e in batch]
+        )
+
+    xr_dataset = EMXRDataset(xr_data, variables, target_variables, TIME_RANGE)
+    data_loader = DataLoader(
+        xr_dataset, batch_size=batch_size, shuffle=shuffle, collate_fn=custom_collate
+    )
+    return data_loader
+
 
 def get_dataloader(
     active_dataset_name,
@@ -84,6 +111,7 @@ def get_dataloader(
     transform_dir,
     batch_size,
     split,
+    ensemble_members,
     evaluation=False,
     shuffle=True,
 ):
@@ -109,21 +137,14 @@ def get_dataloader(
         target_transform_key,
         transform_dir,
         split,
+        ensemble_members,
         evaluation,
     )
 
     variables, target_variables = get_variables(model_src_dataset_name)
 
-    def custom_collate(batch):
-        from torch.utils.data import default_collate
-
-        return *default_collate([(e[0], e[1]) for e in batch]), np.concatenate(
-            [e[2] for e in batch]
-        )
-
-    xr_dataset = XRDataset(xr_data, variables, target_variables, TIME_RANGE)
-    data_loader = DataLoader(
-        xr_dataset, batch_size=batch_size, shuffle=shuffle, collate_fn=custom_collate
+    data_loader = build_dataloader(
+        xr_data, variables, target_variables, batch_size, shuffle
     )
 
     return data_loader, transform, target_transform
