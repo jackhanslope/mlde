@@ -226,7 +226,7 @@ def main(
                     desc=f"Epoch {epoch}",
                     unit=" timesteps",
                 ) as pbar:
-                    for (cond_batch, x_batch) in train_dl:
+                    for (cond_batch, x_batch, time_batch) in train_dl:
                         cond_batch = cond_batch.to(device)
                         x_batch = x_batch.to(device)
                         ###################
@@ -260,7 +260,7 @@ def main(
 
             model.eval()
             val_set_loss = 0.0
-            for val_cond_batch, val_x_batch in val_dl:
+            for val_cond_batch, val_x_batch, val_time_batch in val_dl:
                 # eval_cond_batch, eval_x_batch = next(iter(eval_ds))
                 val_x_batch = val_x_batch.to(device)
                 val_cond_batch = val_cond_batch.to(device)
