@@ -28,6 +28,18 @@ class XRDataset(Dataset):
         return cond, x
 
 
+class EMXRDataset(XRDataset):
+    def __len__(self):
+        return len(self.ds.time) * len(self.ds.ensemble_member)
+
+    def __getitem__(self, idx):
+        em_idx, time_idx = divmod(idx, len(self.ds.time))
+        subds = self.ds.isel(time=time_idx, ensemble_member=em_idx)
+        cond = self.to_tensor(subds, self.variables)
+        x = self.to_tensor(subds, self.target_variables)
+        return cond, x
+
+
 def get_dataloader(
     active_dataset_name,
     model_src_dataset_name,
@@ -36,6 +48,7 @@ def get_dataloader(
     transform_dir,
     batch_size,
     split,
+    ensemble_members,
     evaluation=False,
 ):
     """Create data loaders for given split.
@@ -60,12 +73,13 @@ def get_dataloader(
         target_transform_key,
         transform_dir,
         split,
+        ensemble_members,
         evaluation,
     )
 
     variables, target_variables = get_variables(model_src_dataset_name)
 
-    xr_dataset = XRDataset(xr_data, variables, target_variables)
+    xr_dataset = EMXRDataset(xr_data, variables, target_variables)
     data_loader = DataLoader(xr_dataset, batch_size=batch_size, shuffle=True)
 
     return data_loader, transform, target_transform

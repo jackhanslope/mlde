@@ -9,11 +9,13 @@ import shortuuid
 import torch
 import typer
 from tqdm import tqdm
+import logging
 from tqdm.contrib.logging import logging_redirect_tqdm
 import xarray as xr
 import yaml
 
-from ml_downscaling_emulator.torch import XRDataset
+from ml_downscaling_emulator.torch import EMXRDataset
+from mlde_utils import samples_path, DEFAULT_ENSEMBLE_MEMBER
 from mlde_utils.training.dataset import get_dataset, get_variables
 
 from ml_downscaling_emulator.score_sde_pytorch_hja22.losses import get_optimizer
@@ -59,7 +61,6 @@ from ml_downscaling_emulator.score_sde_pytorch_hja22.sde_lib import (
 #                       NonePredictor,
 #                       AnnealedLangevinDynamics)
 
-import logging
 
 logger = logging.getLogger()
 logger.setLevel("INFO")
@@ -116,7 +117,8 @@ def load_model(config, ckpt_filename):
         ema=ema,
     )
 
-    state = restore_checkpoint(ckpt_filename, state, config.device)
+    state, loaded = restore_checkpoint(ckpt_filename, state, config.device)
+    assert loaded, "Did not load state from checkpoint"
     ema.copy_to(score_model.parameters())
 
     # Sampling
@@ -186,6 +188,7 @@ def main(
     batch_size: int = None,
     num_samples: int = 3,
     input_transform_key: str = None,
+    ensemble_member: str = DEFAULT_ENSEMBLE_MEMBER,
 ):
     config_path = os.path.join(workdir, "config.yml")
     config = load_config(config_path)
@@ -194,13 +197,13 @@ def main(
     if input_transform_key is not None:
         config.data.input_transform_key = input_transform_key
 
-    output_dirpath = (
-        workdir
-        / "samples"
-        / f"epoch-{epoch}"
-        / dataset
-        / config.data.input_transform_key
-        / split
+    output_dirpath = samples_path(
+        workdir=workdir,
+        checkpoint=f"epoch-{epoch}",
+        dataset=dataset,
+        input_xfm=config.data.input_transform_key,
+        split=split,
+        ensemble_member=ensemble_member,
     )
     os.makedirs(output_dirpath, exist_ok=True)
 
@@ -223,6 +226,7 @@ def main(
         config.data.target_transform_key,
         transform_dir,
         split=split,
+        ensemble_members=[ensemble_member],
         evaluation=True,
     )
     variables, _ = get_variables(config.data.dataset_name)
@@ -241,33 +245,38 @@ def main(
         preds = []
         with logging_redirect_tqdm():
             with tqdm(
-                total=len(xr_data_eval["time"]), desc=f"Sampling", unit=" timesteps"
+                total=len(xr_data_eval["ensemble_member"]) * len(xr_data_eval["time"]),
+                desc=f"Sampling",
+                unit=" timesteps",
             ) as pbar:
-                for i in range(
-                    0, xr_data_eval["time"].shape[0], config.eval.batch_size
-                ):
-                    batch_times = xr_data_eval["time"][i : i + config.eval.batch_size]
-                    batch_ds = xr_data_eval.sel(time=batch_times)
+                for em, em_xr_data_eval in xr_data_eval.groupby("ensemble_member"):
+                    for i in range(
+                        0, em_xr_data_eval["time"].shape[0], config.eval.batch_size
+                    ):
+                        batch_times = em_xr_data_eval["time"][
+                            i : i + config.eval.batch_size
+                        ]
+                        batch_ds = em_xr_data_eval.sel(time=batch_times)
 
-                    cond_batch = XRDataset.to_tensor(batch_ds, variables)
-                    # append any location-specific parameters
-                    cond_batch = location_params(cond_batch)
+                        cond_batch = EMXRDataset.to_tensor(batch_ds, variables)
+                        # append any location-specific parameters
+                        cond_batch = location_params(cond_batch)
 
-                    coords = batch_ds.coords
+                        coords = batch_ds.coords
 
-                    preds.append(
-                        generate_predictions(
-                            sampling_fn,
-                            score_model,
-                            config,
-                            cond_batch,
-                            target_transform,
-                            coords,
-                            cf_data_vars,
+                        preds.append(
+                            generate_predictions(
+                                sampling_fn,
+                                score_model,
+                                config,
+                                cond_batch,
+                                target_transform,
+                                coords,
+                                cf_data_vars,
+                            )
                         )
-                    )
 
-                    pbar.update(cond_batch.shape[0])
+                        pbar.update(cond_batch.shape[0])
 
         ds = xr.combine_by_coords(
             preds,

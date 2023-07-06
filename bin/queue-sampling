@@ -59,7 +59,7 @@ def main(
     split: str = "val",
     epoch: int = 100,
     depends_on: int = None,
-    input_transform_key: str = None,
+    gcm_input_transform_key: str = "pixelmmsstan",
 ):
 
     sampling_jobs = 3
@@ -74,9 +74,7 @@ def main(
     full_cmd = (
         shared_queue_cmd
         + ["--"]
-        + sample_cmd(
-            cpm_dataset, split, epoch, samples_per_job, workdir, input_transform_key
-        )
+        + sample_cmd(cpm_dataset, split, epoch, samples_per_job, workdir)
     )
     print(" ".join(full_cmd).strip(), file=sys.stderr)
     output = subprocess.run(full_cmd, capture_output=True)
@@ -87,7 +85,9 @@ def main(
     full_cmd = (
         shared_queue_cmd
         + ["--"]
-        + sample_cmd(gcm_dataset, split, epoch, samples_per_job, workdir)
+        + sample_cmd(
+            gcm_dataset, split, epoch, samples_per_job, workdir, gcm_input_transform_key
+        )
     )
     print(" ".join(full_cmd).strip(), file=sys.stderr)
     output = subprocess.run(full_cmd, capture_output=True)

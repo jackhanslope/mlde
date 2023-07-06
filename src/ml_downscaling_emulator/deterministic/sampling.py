@@ -4,7 +4,7 @@ from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 import xarray as xr
 
-from ml_downscaling_emulator.torch import XRDataset
+from ml_downscaling_emulator.torch import EMXRDataset
 
 
 def generate_np_samples(model, cond_batch):
@@ -35,7 +35,7 @@ def np_samples_to_xr(samples, xr_eval_ds, target_transform):
         ]
     }
 
-    pred_pr_dims = ["time", "grid_latitude", "grid_longitude"]
+    pred_pr_dims = ["ensemble_member", "time", "grid_latitude", "grid_longitude"]
     pred_pr_attrs = {
         "grid_mapping": "rotated_latitude_longitude",
         "standard_name": "pred_pr",
@@ -64,17 +64,19 @@ def sample(model, xr_data_eval, batch_size, variables, target_transform):
             with torch.no_grad():
                 for i in range(0, xr_data_eval["time"].shape[0], batch_size):
                     batch_times = xr_data_eval["time"][i : i + batch_size]
-                    batch_ds = xr_data_eval.sel(time=batch_times)
+                    batch_ds = xr_data_eval.sel(time=batch_times).squeeze(
+                        "ensemble_member"
+                    )
 
-                    cond_batch = XRDataset.to_tensor(batch_ds, variables)
+                    cond_batch = EMXRDataset.to_tensor(batch_ds, variables)
 
                     batch_np_samples = generate_np_samples(model, cond_batch)
                     np_samples.append(batch_np_samples)
 
                     pbar.update(batch_np_samples.shape[0])
 
-    # combine the samples along the time/batch axis
-    np_samples = np.concatenate(np_samples, axis=0)
+    # combine the samples along the time/batch axis and add an ensemble member axis
+    np_samples = np.concatenate(np_samples, axis=0)[np.newaxis, ...]
 
     xr_samples = np_samples_to_xr(np_samples, xr_data_eval, target_transform)
 

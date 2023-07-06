@@ -23,6 +23,7 @@ def main(
     cpm_dataset: str = typer.Option(...),
     gcm_dataset: str = typer.Option(...),
     sde: str = typer.Option(...),
+    gcm_input_transform_key: str = None,
 ):
     # Add any other config on the commandline for training
     # --config.data.input_transform_key=spatial
@@ -48,6 +49,13 @@ def main(
         "--depends-on",
         training_job_id,
     ]
+    if gcm_input_transform_key:
+        sample_cmd.append(
+            [
+                "--gcm-input-transform-key",
+                gcm_input_transform_key,
+            ]
+        )
     print(" ".join(sample_cmd).strip(), file=sys.stderr)
     output = subprocess.run(sample_cmd, capture_output=True)
     print(output.stderr.decode("utf8").strip(), file=sys.stderr)

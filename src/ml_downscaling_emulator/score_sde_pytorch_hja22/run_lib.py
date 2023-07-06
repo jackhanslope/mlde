@@ -44,8 +44,12 @@ from torch.utils.tensorboard import SummaryWriter
 from .utils import save_checkpoint, restore_checkpoint
 
 from ml_downscaling_emulator.torch import get_dataloader
+from mlde_utils import DatasetMetadata
+from ml_downscaling_emulator.training import log_epoch, track_run
 
 FLAGS = flags.FLAGS
+
+EXPERIMENT_NAME = os.getenv("WANDB_EXPERIMENT_NAME")
 
 def val_loss(config, eval_ds, eval_step_fn, state):
   val_set_loss = 0.0
@@ -91,115 +95,124 @@ def train(config, workdir):
   tb_dir = os.path.join(workdir, "tensorboard")
   os.makedirs(tb_dir, exist_ok=True)
 
-  writer = SummaryWriter(tb_dir)
+  run_config = dict(
+        dataset=config.data.dataset_name,
+        input_transform_key=config.data.input_transform_key,
+        target_transform_key=config.data.target_transform_key,
+        architecture=config.model.name,
+        sde=config.training.sde,
+        name=os.path.basename(workdir),
+    )
+  run_name = os.path.basename(workdir)
 
-  # Build dataloaders
-  train_dl, _, _ = get_dataloader(config.data.dataset_name, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.training.batch_size, split="train", evaluation=False)
-  eval_dl, _, _ = get_dataloader(config.data.dataset_name, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.training.batch_size, split="val", evaluation=False)
+  with track_run(
+        EXPERIMENT_NAME, run_name, run_config, ["score_sde"], tb_dir
+    ) as (wandb_run, writer):
+    # Build dataloaders
+    dataset_meta = DatasetMetadata(config.data.dataset_name)
+    train_dl, _, _ = get_dataloader(config.data.dataset_name, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.training.batch_size, split="train", ensemble_members=dataset_meta.ensemble_members(), evaluation=False)
+    eval_dl, _, _ = get_dataloader(config.data.dataset_name, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.training.batch_size, split="val", ensemble_members=dataset_meta.ensemble_members(), evaluation=False)
 
-  # Initialize model.
-  score_model = mutils.create_model(config)
-  # include a learnable feature map
-  location_params = LocationParams(config.model.loc_spec_channels, config.data.image_size)
-  location_params = location_params.to(config.device)
-  location_params = torch.nn.DataParallel(location_params)
-  ema = ExponentialMovingAverage(itertools.chain(score_model.parameters(), location_params.parameters()), decay=config.model.ema_rate)
-  optimizer = losses.get_optimizer(config, itertools.chain(score_model.parameters(), location_params.parameters()))
-  state = dict(optimizer=optimizer, model=score_model, location_params=location_params, ema=ema, step=0, epoch=0)
+    # Initialize model.
+    score_model = mutils.create_model(config)
+    # include a learnable feature map
+    location_params = LocationParams(config.model.loc_spec_channels, config.data.image_size)
+    location_params = location_params.to(config.device)
+    location_params = torch.nn.DataParallel(location_params)
+    ema = ExponentialMovingAverage(itertools.chain(score_model.parameters(), location_params.parameters()), decay=config.model.ema_rate)
+    optimizer = losses.get_optimizer(config, itertools.chain(score_model.parameters(), location_params.parameters()))
+    state = dict(optimizer=optimizer, model=score_model, location_params=location_params, ema=ema, step=0, epoch=0)
 
-  # Create checkpoints directory
-  checkpoint_dir = os.path.join(workdir, "checkpoints")
-  # Intermediate checkpoints to resume training after pre-emption in cloud environments
-  checkpoint_meta_dir = os.path.join(workdir, "checkpoints-meta", "checkpoint.pth")
-  os.makedirs(checkpoint_dir, exist_ok=True)
-  os.makedirs(os.path.dirname(checkpoint_meta_dir), exist_ok=True)
-  # Resume training when intermediate checkpoints are detected
-  state = restore_checkpoint(checkpoint_meta_dir, state, config.device)
-  initial_epoch = int(state['epoch'])
+    # Create checkpoints directory
+    checkpoint_dir = os.path.join(workdir, "checkpoints")
+    # Intermediate checkpoints to resume training after pre-emption in cloud environments
+    checkpoint_meta_dir = os.path.join(workdir, "checkpoints-meta", "checkpoint.pth")
+    os.makedirs(checkpoint_dir, exist_ok=True)
+    os.makedirs(os.path.dirname(checkpoint_meta_dir), exist_ok=True)
+    # Resume training when intermediate checkpoints are detected
+    state, _ = restore_checkpoint(checkpoint_meta_dir, state, config.device)
+    initial_epoch = int(state['epoch'])+1 # start from the epoch after the one currently reached
 
-  # Setup SDEs
-  if config.training.sde.lower() == 'vpsde':
-    sde = sde_lib.VPSDE(beta_min=config.model.beta_min, beta_max=config.model.beta_max, N=config.model.num_scales)
-    sampling_eps = 1e-3
-  elif config.training.sde.lower() == 'subvpsde':
-    sde = sde_lib.subVPSDE(beta_min=config.model.beta_min, beta_max=config.model.beta_max, N=config.model.num_scales)
-    sampling_eps = 1e-3
-  elif config.training.sde.lower() == 'vesde':
-    sde = sde_lib.VESDE(sigma_min=config.model.sigma_min, sigma_max=config.model.sigma_max, N=config.model.num_scales)
-    sampling_eps = 1e-5
-  else:
-    raise NotImplementedError(f"SDE {config.training.sde} unknown.")
+    # Setup SDEs
+    if config.training.sde.lower() == 'vpsde':
+      sde = sde_lib.VPSDE(beta_min=config.model.beta_min, beta_max=config.model.beta_max, N=config.model.num_scales)
+      sampling_eps = 1e-3
+    elif config.training.sde.lower() == 'subvpsde':
+      sde = sde_lib.subVPSDE(beta_min=config.model.beta_min, beta_max=config.model.beta_max, N=config.model.num_scales)
+      sampling_eps = 1e-3
+    elif config.training.sde.lower() == 'vesde':
+      sde = sde_lib.VESDE(sigma_min=config.model.sigma_min, sigma_max=config.model.sigma_max, N=config.model.num_scales)
+      sampling_eps = 1e-5
+    else:
+      raise NotImplementedError(f"SDE {config.training.sde} unknown.")
 
-  # Build one-step training and evaluation functions
-  optimize_fn = losses.optimization_manager(config)
-  continuous = config.training.continuous
-  reduce_mean = config.training.reduce_mean
-  likelihood_weighting = config.training.likelihood_weighting
-  train_step_fn = losses.get_step_fn(sde, train=True, optimize_fn=optimize_fn,
-                                     reduce_mean=reduce_mean, continuous=continuous,
-                                     likelihood_weighting=likelihood_weighting)
-  eval_step_fn = losses.get_step_fn(sde, train=False, optimize_fn=optimize_fn,
-                                    reduce_mean=reduce_mean, continuous=continuous,
-                                    likelihood_weighting=likelihood_weighting)
+    # Build one-step training and evaluation functions
+    optimize_fn = losses.optimization_manager(config)
+    continuous = config.training.continuous
+    reduce_mean = config.training.reduce_mean
+    likelihood_weighting = config.training.likelihood_weighting
+    train_step_fn = losses.get_step_fn(sde, train=True, optimize_fn=optimize_fn,
+                                      reduce_mean=reduce_mean, continuous=continuous,
+                                      likelihood_weighting=likelihood_weighting)
+    eval_step_fn = losses.get_step_fn(sde, train=False, optimize_fn=optimize_fn,
+                                      reduce_mean=reduce_mean, continuous=continuous,
+                                      likelihood_weighting=likelihood_weighting)
 
-  num_train_epochs = config.training.n_epochs
+    num_train_epochs = config.training.n_epochs
 
-  # In case there are multiple hosts (e.g., TPU pods), only log to host 0
-  logging.info("Starting training loop at epoch %d." % (initial_epoch,))
+    # In case there are multiple hosts (e.g., TPU pods), only log to host 0
+    logging.info("Starting training loop at epoch %d." % (initial_epoch,))
 
-  if config.training.random_crop_size > 0:
-    random_crop = torchvision.transforms.RandomCrop(config.training.random_crop_size)
+    if config.training.random_crop_size > 0:
+      random_crop = torchvision.transforms.RandomCrop(config.training.random_crop_size)
 
-  step = state["step"]
-  for epoch in range(initial_epoch, num_train_epochs + 1):
-    state['epoch'] = epoch
-    with logging_redirect_tqdm():
-      with tqdm(total=len(train_dl.dataset), desc=f'Epoch {epoch}', unit=' timesteps') as pbar:
-        for cond_batch, x_batch in train_dl:
+    for epoch in range(initial_epoch, num_train_epochs + 1):
+      state['epoch'] = epoch
+      train_set_loss = 0.0
+      with logging_redirect_tqdm():
+        with tqdm(total=len(train_dl.dataset), desc=f"Epoch {state['epoch']}", unit=' timesteps') as pbar:
+          for cond_batch, x_batch in train_dl:
 
-          x_batch = x_batch.to(config.device)
-          cond_batch = cond_batch.to(config.device)
-          # append any location-specific parameters
-          cond_batch = state['location_params'](cond_batch)
+            x_batch = x_batch.to(config.device)
+            cond_batch = cond_batch.to(config.device)
+            # append any location-specific parameters
+            cond_batch = state['location_params'](cond_batch)
 
-          if config.training.random_crop_size > 0:
-            x_ch = x_batch.shape[1]
-            cropped = random_crop(torch.cat([x_batch, cond_batch], dim=1))
-            x_batch = cropped[:,:x_ch]
-            cond_batch = cropped[:,x_ch:]
+            if config.training.random_crop_size > 0:
+              x_ch = x_batch.shape[1]
+              cropped = random_crop(torch.cat([x_batch, cond_batch], dim=1))
+              x_batch = cropped[:,:x_ch]
+              cond_batch = cropped[:,x_ch:]
 
-          # Convert data to JAX arrays and normalize them. Use ._numpy() to avoid copy.
-          # batch = torch.from_numpy(next(train_iter)['image']._numpy()).to(config.device).float()
-          # batch = batch.permute(0, 3, 1, 2)
-          # Execute one training step
-          loss = train_step_fn(state, x_batch, cond_batch)
-          if step % config.training.log_freq == 0:
-            logging.info("epoch: %d, step: %d, training_loss: %.5e" % (epoch, step, loss.item()))
-            writer.add_scalar("training_loss", loss.cpu().detach(), global_step=step)
+            # Execute one training step
+            loss = train_step_fn(state, x_batch, cond_batch)
+            train_set_loss += loss.item()
+            if state['step'] % config.training.log_freq == 0:
+              logging.info("epoch: %d, step: %d, train_loss: %.5e" % (state['epoch'], state['step'], loss.item()))
+              writer.add_scalar("step/train/loss", loss.cpu().detach(), global_step=state['step'])
 
-          # Report the loss on an evaluation dataset periodically
-          if step % config.training.eval_freq == 0:
-            val_set_loss = val_loss(config, eval_dl, eval_step_fn, state)
-            logging.info("epoch: %d, step: %d, eval_loss: %.5e" % (epoch, step, val_set_loss))
-            writer.add_scalar("eval_loss", val_set_loss, global_step=step)
+            # Report the loss on an evaluation dataset periodically
+            if state['step'] % config.training.eval_freq == 0:
+              val_set_loss = val_loss(config, eval_dl, eval_step_fn, state)
+              logging.info("epoch: %d, step: %d, val_loss: %.5e" % (state['epoch'], state['step'], val_set_loss))
+              writer.add_scalar("step/val/loss", val_set_loss, global_step=state['step'])
 
-          # Log progress so far on epoch
-          pbar.update(cond_batch.shape[0])
+            # Log progress so far on epoch
+            pbar.update(cond_batch.shape[0])
 
-          step += 1
+      train_set_loss = train_set_loss / len(train_dl)
+      # Save a temporary checkpoint to resume training after each epoch
+      save_checkpoint(checkpoint_meta_dir, state)
+      # Report the loss on an evaluation dataset each epoch
+      val_set_loss = val_loss(config, eval_dl, eval_step_fn, state)
+      epoch_metrics = {"epoch/train/loss": train_set_loss, "epoch/val/loss": val_set_loss}
 
-    # Save a temporary checkpoint to resume training after each epoch
-    save_checkpoint(checkpoint_meta_dir, state)
-    # Report the loss on an evaluation dataset each epoch
-    val_set_loss = val_loss(config, eval_dl, eval_step_fn, state)
-    logging.info("epoch: %d, eval_loss: %.5e" % (epoch, val_set_loss))
-    writer.add_scalar("epoch_eval_loss", val_set_loss, global_step=epoch)
+      logging.info("epoch: %d, val_loss: %.5e" % (state['epoch'], val_set_loss))
+      writer.add_scalar("epoch/val/loss", val_set_loss, global_step=state['epoch'])
+      log_epoch(state['epoch'], epoch_metrics, wandb_run,writer)
 
-    if (epoch != 0 and epoch % config.training.snapshot_freq == 0) or epoch == num_train_epochs:
-      # Save the checkpoint.
-      checkpoint_path = os.path.join(checkpoint_dir, f'epoch_{epoch}.pth')
-      save_checkpoint(checkpoint_path, state)
-      logging.info(f"epoch: {epoch}, checkpoint saved to {checkpoint_path}")
-
-  writer.flush()
-  writer.close()
+      if (state['epoch'] != 0 and state['epoch'] % config.training.snapshot_freq == 0) or state['epoch'] == num_train_epochs:
+        # Save the checkpoint.
+        checkpoint_path = os.path.join(checkpoint_dir, f"epoch_{state['epoch']}.pth")
+        save_checkpoint(checkpoint_path, state)
+        logging.info(f"epoch: {state['epoch']}, checkpoint saved to {checkpoint_path}")

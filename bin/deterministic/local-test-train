@@ -4,14 +4,14 @@ set -euo pipefail
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
-cpm_dataset="bham_gcmx-4x_spechum-temp-vort_random"
-gcm_dataset="bham_60km-4x_spechum-temp-vort_random"
-workdir="output/test/unet"
+cpm_dataset="bham_gcmx-4x_12em_psl-temp4th-vort4th_eqvt_random-season"
+gcm_dataset="bham_60km-4x_12em_psl-temp4th-vort4th_eqvt_random-season"
+workdir="output/test/unet/test-run"
 
 map_features=1
-train_batch_size=2
+train_batch_size=32
 
-rm -rf output/test
+rm -rf ${workdir}
 WANDB_EXPERIMENT_NAME="test" python ${SCRIPT_DIR}/train-model.py ${workdir} --dataset ${cpm_dataset} --batch-size ${train_batch_size} --learning-rate 1e-4 --epochs=2
 
 epoch=2
