@@ -145,20 +145,16 @@ def generate_samples(sampling_fn, score_model, config, cond_batch):
     return samples
 
 
-def generate_predictions(
-    sampling_fn, score_model, config, cond_batch, target_transform, coords, cf_data_vars
-):
-    samples = generate_samples(sampling_fn, score_model, config, cond_batch)
-
+def np_samples_to_xr(np_samples, target_transform, coords, cf_data_vars):
     coords = {**dict(coords)}
 
-    pred_pr_dims = ["time", "grid_latitude", "grid_longitude"]
+    pred_pr_dims = ["ensemble_member", "time", "grid_latitude", "grid_longitude"]
     pred_pr_attrs = {
         "grid_mapping": "rotated_latitude_longitude",
         "standard_name": "pred_pr",
         "units": "kg m-2 s-1",
     }
-    pred_pr_var = (pred_pr_dims, samples, pred_pr_attrs)
+    pred_pr_var = (pred_pr_dims, np_samples, pred_pr_attrs)
 
     data_vars = {**cf_data_vars, "target_pr": pred_pr_var}
 
@@ -257,17 +253,19 @@ def main(
 
                     coords = eval_dl.dataset.ds.sel(time=time_batch).coords
 
-                    preds.append(
-                        generate_predictions(
-                            sampling_fn,
-                            score_model,
-                            config,
-                            cond_batch,
-                            target_transform,
-                            coords,
-                            cf_data_vars,
-                        )
+                    np_samples = generate_samples(
+                        sampling_fn, score_model, config, cond_batch
                     )
+
+                    xr_samples = np_samples_to_xr(
+                        np_samples,
+                        cond_batch,
+                        target_transform,
+                        coords,
+                        cf_data_vars,
+                    )
+
+                    preds.append(xr_samples)
 
                     pbar.update(cond_batch.shape[0])
 

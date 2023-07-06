@@ -11,14 +11,11 @@ import typer
 import xarray as xr
 import yaml
 
+from mlde_utils import samples_path, DEFAULT_ENSEMBLE_MEMBER
+from mlde_utils.training.dataset import load_raw_dataset_split
 from ..deterministic import sampling
-from mlde_utils import samples_path
 from ..deterministic.utils import restore_checkpoint
-from mlde_utils.training.dataset import (
-    get_variables,
-    get_dataset,
-    load_raw_dataset_split,
-)
+from ..torch import get_dataloader
 
 from ..unet import unet
 
@@ -47,6 +44,7 @@ def sample(
     batch_size: int = typer.Option(...),
     num_samples: int = 1,
     input_transform_key: str = None,
+    ensemble_member: str = DEFAULT_ENSEMBLE_MEMBER,
 ):
 
     config_path = os.path.join(workdir, "config.yml")
@@ -62,41 +60,42 @@ def sample(
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logging.info(f"Using device {device}")
 
-    output_dirpath = (
-        workdir
-        / "samples"
-        / f"epoch-{epoch}"
-        / dataset
-        / config["input_transform_key"]
-        / split
+    output_dirpath = samples_path(
+        workdir=workdir,
+        checkpoint=f"epoch-{epoch}",
+        dataset=dataset,
+        input_xfm=config["input_transform_key"],
+        split=split,
+        ensemble_member=ensemble_member,
     )
     os.makedirs(output_dirpath, exist_ok=True)
 
     transform_dir = os.path.join(workdir, "transforms")
-    xr_data_eval, _, target_transform = get_dataset(
+
+    eval_dl, _, target_transform = get_dataloader(
         dataset,
-        config["dataset"],
-        config["input_transform_key"],
-        config["target_transform_key"],
+        config.data.dataset_name,
+        config.data.input_transform_key,
+        config.data.target_transform_key,
         transform_dir,
         split=split,
+        ensemble_members=[ensemble_member],
         evaluation=True,
+        batch_size=config.eval.batch_size,
+        shuffle=False,
     )
-    variables, _ = get_variables(config["dataset"])
 
     ckpt_filename = os.path.join(workdir, "checkpoints", f"epoch_{epoch}.pth")
-    num_predictors = len(variables)
+    num_predictors = eval_dl.dataset[0][0].shape
     model = unet.UNet(num_predictors, 1).to(device=device)
-    model.eval()
     optimizer = torch.optim.Adam(model.parameters())
     state = dict(step=0, epoch=0, optimizer=optimizer, model=model)
-    state = restore_checkpoint(ckpt_filename, state, device)
+    state, loaded = restore_checkpoint(ckpt_filename, state, device)
+    assert loaded, "Did not load state from checkpoint"
 
     for sample_id in range(num_samples):
         typer.echo(f"Sample run {sample_id}...")
-        xr_samples = sampling.sample(
-            state["model"], xr_data_eval, batch_size, variables, target_transform
-        )
+        xr_samples = sampling.sample(state["model"], eval_dl, target_transform)
 
         output_filepath = os.path.join(
             output_dirpath, f"predictions-{shortuuid.uuid()}.nc"

@@ -1,10 +1,7 @@
-import numpy as np
 import torch
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 import xarray as xr
-
-from ml_downscaling_emulator.torch import XRDataset
 
 
 def generate_np_samples(model, cond_batch):
@@ -22,18 +19,8 @@ def generate_np_samples(model, cond_batch):
     return samples
 
 
-def np_samples_to_xr(samples, xr_eval_ds, target_transform):
-    coords = {**dict(xr_eval_ds.coords)}
-
-    cf_data_vars = {
-        key: xr_eval_ds.data_vars[key]
-        for key in [
-            "rotated_latitude_longitude",
-            "time_bnds",
-            "grid_latitude_bnds",
-            "grid_longitude_bnds",
-        ]
-    }
+def np_samples_to_xr(samples, coords, target_transform, cf_data_vars):
+    coords = {**dict(coords)}
 
     pred_pr_dims = ["ensemble_member", "time", "grid_latitude", "grid_longitude"]
     pred_pr_attrs = {
@@ -55,27 +42,40 @@ def np_samples_to_xr(samples, xr_eval_ds, target_transform):
     return pred_ds
 
 
-def sample(model, xr_data_eval, batch_size, variables, target_transform):
-    np_samples = []
+def sample(model, eval_dl, target_transform):
+    cf_data_vars = {
+        key: eval_dl.dataset.ds.data_vars[key]
+        for key in [
+            "rotated_latitude_longitude",
+            "time_bnds",
+            "grid_latitude_bnds",
+            "grid_longitude_bnds",
+        ]
+    }
+    preds = []
     with logging_redirect_tqdm():
         with tqdm(
-            total=len(xr_data_eval["time"]), desc=f"Sampling", unit=" timesteps"
+            total=len(eval_dl.dataset), desc=f"Sampling", unit=" timesteps"
         ) as pbar:
             with torch.no_grad():
-                for i in range(0, xr_data_eval["time"].shape[0], batch_size):
-                    batch_times = xr_data_eval["time"][i : i + batch_size]
-                    batch_ds = xr_data_eval.sel(time=batch_times)
-
-                    cond_batch = XRDataset.variables_to_tensor(batch_ds, variables)
-
+                for cond_batch, _, time_batch in eval_dl:
+                    coords = eval_dl.dataset.ds.sel(time=time_batch).coords
                     batch_np_samples = generate_np_samples(model, cond_batch)
-                    np_samples.append(batch_np_samples)
 
-                    pbar.update(batch_np_samples.shape[0])
+                    xr_samples = np_samples_to_xr(
+                        batch_np_samples, coords, target_transform, cf_data_vars
+                    )
+                    preds.append(xr_samples)
 
-    # combine the samples along the time/batch axis
-    np_samples = np.concatenate(np_samples, axis=0)
+                    pbar.update(cond_batch.shape[0])
 
-    xr_samples = np_samples_to_xr(np_samples, xr_data_eval, target_transform)
+    ds = xr.combine_by_coords(
+        preds,
+        compat="no_conflicts",
+        combine_attrs="drop_conflicts",
+        coords="all",
+        join="inner",
+        data_vars="all",
+    )
 
-    return xr_samples
+    return ds
