@@ -140,7 +140,9 @@ def main(
 
     state = dict(optimizer=optimizer, model=model, step=0, epoch=0)
 
-    initial_epoch = int(state["epoch"])
+    initial_epoch = (
+        int(state["epoch"]) + 1
+    )  # start from the epoch after the one currently reached
     step = state["step"]
 
     def loss_fn(model, batch, cond):
@@ -223,7 +225,7 @@ def main(
             with logging_redirect_tqdm():
                 with tqdm(
                     total=len(train_dl.dataset),
-                    desc=f"Epoch {epoch}",
+                    desc=f"Epoch {state['epoch']}",
                     unit=" timesteps",
                 ) as pbar:
                     for (cond_batch, x_batch, time_batch) in train_dl:
@@ -275,12 +277,18 @@ def main(
                 "epoch/train/loss": train_set_loss,
                 "epoch/val/loss": val_set_loss,
             }
-            log_epoch(epoch, epoch_metrics, wandb_run, tb_writer)
+            log_epoch(state["epoch"], epoch_metrics, wandb_run, tb_writer)
             # Checkpoint model
-            if (epoch != 0 and epoch % snapshot_freq == 0) or epoch == epochs:
-                checkpoint_path = os.path.join(checkpoint_dir, f"epoch_{epoch}.pth")
+            if (state["epoch"] != 0 and state["epoch"] % snapshot_freq == 0) or state[
+                "epoch"
+            ] == epochs:
+                checkpoint_path = os.path.join(
+                    checkpoint_dir, f"epoch_{state['epoch']}.pth"
+                )
                 save_checkpoint(checkpoint_path, state)
-                logging.info(f"epoch: {epoch}, checkpoint saved to {checkpoint_path}")
+                logging.info(
+                    f"epoch: {state['epoch']}, checkpoint saved to {checkpoint_path}"
+                )
 
     logging.info(f"Finished {os.path.basename(__file__)}")
 
