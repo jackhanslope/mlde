@@ -161,9 +161,6 @@ def main(
     def eval_step_fn(state, batch, cond):
         """Running one step of training or evaluation.
 
-        This function will undergo `jax.lax.scan` so that multiple steps can be pmapped and jit-compiled together
-        for faster execution.
-
         Args:
         state: A dictionary of training information, containing the score model, optimizer,
         EMA status, and number of optimization steps.
@@ -181,9 +178,6 @@ def main(
 
     def train_step_fn(state, batch, cond):
         """Running one step of training or evaluation.
-
-        This function will undergo `jax.lax.scan` so that multiple steps can be pmapped and jit-compiled together
-        for faster execution.
 
         Args:
         state: A dictionary of training information, containing the score model, optimizer,
@@ -218,6 +212,7 @@ def main(
         logging.info("Starting training loop at epoch %d." % (initial_epoch,))
 
         for epoch in range(initial_epoch, epochs + 1):
+            state["epoch"] = epoch
             # Update model based on training data
             model.train()
 
@@ -231,28 +226,9 @@ def main(
                     for (cond_batch, x_batch, time_batch) in train_dl:
                         cond_batch = cond_batch.to(device)
                         x_batch = x_batch.to(device)
-                        ###################
-                        # CURRENT VERSION #
-                        ###################
-                        # # Compute prediction and loss
-                        # outputs_tensor = model(cond_batch)
-                        # train_batch_loss = criterion(outputs_tensor, x_batch)
-                        # train_set_loss += train_batch_loss.item()
 
-                        # # Backpropagation
-                        # optimizer.zero_grad()
-                        # train_batch_loss.backward()
-                        # optimizer.step()
-
-                        #####################
-                        # SCORE_SDE VERSION #
-                        #####################
                         train_batch_loss = train_step_fn(state, x_batch, cond_batch)
                         train_set_loss += train_batch_loss.item()
-
-                        #######
-                        # END #
-                        #######
 
                         # Log progress so far on epoch
                         pbar.update(cond_batch.shape[0])
@@ -263,10 +239,8 @@ def main(
             model.eval()
             val_set_loss = 0.0
             for val_cond_batch, val_x_batch, val_time_batch in val_dl:
-                # eval_cond_batch, eval_x_batch = next(iter(eval_ds))
                 val_x_batch = val_x_batch.to(device)
                 val_cond_batch = val_cond_batch.to(device)
-                # eval_batch = eval_batch.permute(0, 3, 1, 2)
                 val_batch_loss = eval_step_fn(state, val_x_batch, val_cond_batch)
 
                 # Progress
