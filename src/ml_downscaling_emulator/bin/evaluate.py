@@ -12,7 +12,7 @@ import xarray as xr
 import yaml
 
 from ..deterministic import sampling
-from mlde_utils import samples_path
+from mlde_utils import samples_path, DEFAULT_ENSEMBLE_MEMBER
 from ..deterministic.utils import restore_checkpoint
 from mlde_utils.training.dataset import (
     get_variables,
@@ -47,6 +47,7 @@ def sample(
     batch_size: int = typer.Option(...),
     num_samples: int = 1,
     input_transform_key: str = None,
+    ensemble_member: str = DEFAULT_ENSEMBLE_MEMBER,
 ):
 
     config_path = os.path.join(workdir, "config.yml")
@@ -62,13 +63,13 @@ def sample(
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logging.info(f"Using device {device}")
 
-    output_dirpath = (
-        workdir
-        / "samples"
-        / f"epoch-{epoch}"
-        / dataset
-        / config["input_transform_key"]
-        / split
+    output_dirpath = samples_path(
+        workdir=workdir,
+        checkpoint=f"epoch-{epoch}",
+        dataset=dataset,
+        input_xfm=config["input_transform_key"],
+        split=split,
+        ensemble_member=ensemble_member,
     )
     os.makedirs(output_dirpath, exist_ok=True)
 
@@ -81,6 +82,7 @@ def sample(
         transform_dir,
         split=split,
         evaluation=True,
+        ensemble_members=[ensemble_member],
     )
     variables, _ = get_variables(config["dataset"])
 
@@ -90,7 +92,8 @@ def sample(
     model.eval()
     optimizer = torch.optim.Adam(model.parameters())
     state = dict(step=0, epoch=0, optimizer=optimizer, model=model)
-    state = restore_checkpoint(ckpt_filename, state, device)
+    state, loaded = restore_checkpoint(ckpt_filename, state, device)
+    assert loaded, "Did not load state from checkpoint"
 
     for sample_id in range(num_samples):
         typer.echo(f"Sample run {sample_id}...")
