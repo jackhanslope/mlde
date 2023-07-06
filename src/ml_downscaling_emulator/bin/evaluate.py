@@ -34,12 +34,34 @@ def callback():
     pass
 
 
+def load_config(config_path):
+    logger.info(f"Loading config from {config_path}")
+    with open(config_path) as f:
+        config = yaml.unsafe_load(f)
+
+    return config
+
+
+def load_model(num_predictors, ckpt_filename):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    logging.info(f"Using device {device}")
+
+    model = unet.UNet(num_predictors, 1).to(device=device)
+    optimizer = torch.optim.Adam(model.parameters())
+    state = dict(step=0, epoch=0, optimizer=optimizer, model=model)
+    state, loaded = restore_checkpoint(ckpt_filename, state, device)
+    assert loaded, "Did not load state from checkpoint"
+
+    return state
+
+
 @app.command()
 @Timer(name="sample", text="{name}: {minutes:.1f} minutes", logger=logging.info)
 @slack_sender(webhook_url=os.getenv("KK_SLACK_WH_URL"), channel="general")
 def sample(
     workdir: Path,
     dataset: str = typer.Option(...),
+    split: str = "val",
     epoch: int = typer.Option(...),
     batch_size: int = typer.Option(...),
     num_samples: int = 1,
@@ -48,17 +70,10 @@ def sample(
 ):
 
     config_path = os.path.join(workdir, "config.yml")
-    logger.info(f"Loading config from {config_path}")
-    with open(config_path) as f:
-        config = yaml.unsafe_load(f)
-
-    split = "val"
+    config = load_config(config_path)
 
     if input_transform_key is not None:
         config["input_transform_key"] = input_transform_key
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    logging.info(f"Using device {device}")
 
     output_dirpath = samples_path(
         workdir=workdir,
@@ -74,24 +89,20 @@ def sample(
 
     eval_dl, _, target_transform = get_dataloader(
         dataset,
-        config.data.dataset_name,
-        config.data.input_transform_key,
-        config.data.target_transform_key,
+        config["dataset"],
+        config["input_transform_key"],
+        config["target_transform_key"],
         transform_dir,
         split=split,
         ensemble_members=[ensemble_member],
         evaluation=True,
-        batch_size=config.eval.batch_size,
+        batch_size=batch_size,
         shuffle=False,
     )
 
     ckpt_filename = os.path.join(workdir, "checkpoints", f"epoch_{epoch}.pth")
-    num_predictors = eval_dl.dataset[0][0].shape
-    model = unet.UNet(num_predictors, 1).to(device=device)
-    optimizer = torch.optim.Adam(model.parameters())
-    state = dict(step=0, epoch=0, optimizer=optimizer, model=model)
-    state, loaded = restore_checkpoint(ckpt_filename, state, device)
-    assert loaded, "Did not load state from checkpoint"
+    num_predictors = eval_dl.dataset[0][0].shape[0]
+    state = load_model(num_predictors, ckpt_filename)
 
     for sample_id in range(num_samples):
         typer.echo(f"Sample run {sample_id}...")

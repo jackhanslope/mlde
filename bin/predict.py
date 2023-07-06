@@ -134,7 +134,7 @@ def load_model(config, ckpt_filename):
     return state, sampling_fn
 
 
-def generate_samples(sampling_fn, score_model, config, cond_batch):
+def generate_np_samples(sampling_fn, score_model, config, cond_batch):
     cond_batch = cond_batch.to(config.device)
 
     samples = sampling_fn(score_model, cond_batch)[0]
@@ -253,7 +253,7 @@ def main(
 
                     coords = eval_dl.dataset.ds.sel(time=time_batch).coords
 
-                    np_samples = generate_samples(
+                    np_samples = generate_np_samples(
                         sampling_fn, score_model, config, cond_batch
                     )
 

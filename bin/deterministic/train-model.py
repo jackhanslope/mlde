@@ -124,7 +124,7 @@ def main(
     )
 
     # Setup model, loss and optimiser
-    num_predictors, _, _ = train_dl.dataset[0][0].shape
+    num_predictors = train_dl.dataset[0][0].shape[0]
     model = unet.UNet(num_predictors, 1).to(device=device)
     if run_config["loss"] == "MSELoss":
         criterion = torch.nn.MSELoss().to(device)
