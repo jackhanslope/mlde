@@ -173,6 +173,60 @@ def load_config(config_path):
     return config
 
 
+def sample(sampling_fn, state, config, eval_dl, target_transform):
+    score_model = state["model"]
+    location_params = state["location_params"]
+
+    cf_data_vars = {
+        key: eval_dl.dataset.ds.data_vars[key]
+        for key in [
+            "rotated_latitude_longitude",
+            "time_bnds",
+            "grid_latitude_bnds",
+            "grid_longitude_bnds",
+        ]
+    }
+
+    preds = []
+    with logging_redirect_tqdm():
+        with tqdm(
+            total=len(eval_dl.dataset),
+            desc=f"Sampling",
+            unit=" timesteps",
+        ) as pbar:
+            for cond_batch, _, time_batch in eval_dl:
+                # append any location-specific parameters
+                cond_batch = location_params(cond_batch)
+
+                coords = eval_dl.dataset.ds.sel(time=time_batch).coords
+
+                np_samples = generate_np_samples(
+                    sampling_fn, score_model, config, cond_batch
+                )
+
+                xr_samples = np_samples_to_xr(
+                    np_samples,
+                    cond_batch,
+                    target_transform,
+                    coords,
+                    cf_data_vars,
+                )
+
+                preds.append(xr_samples)
+
+                pbar.update(cond_batch.shape[0])
+
+    ds = xr.combine_by_coords(
+        preds,
+        compat="no_conflicts",
+        combine_attrs="drop_conflicts",
+        coords="all",
+        join="inner",
+        data_vars="all",
+    )
+    return ds
+
+
 @app.command()
 @Timer(name="sample", text="{name}: {minutes:.1f} minutes", logger=logger.info)
 @slack_sender(webhook_url=os.getenv("KK_SLACK_WH_URL"), channel="general")
@@ -207,11 +261,6 @@ def main(
     with open(sampling_config_path, "w") as f:
         f.write(config.to_yaml())
 
-    ckpt_filename = os.path.join(workdir, "checkpoints", f"epoch_{epoch}.pth")
-    logger.info(f"Loading model from {ckpt_filename}")
-    state, sampling_fn = load_model(config, ckpt_filename)
-    score_model = state["model"]
-    location_params = state["location_params"]
     transform_dir = os.path.join(workdir, "transforms")
 
     # Data
@@ -228,59 +277,18 @@ def main(
         shuffle=False,
     )
 
+    ckpt_filename = os.path.join(workdir, "checkpoints", f"epoch_{epoch}.pth")
+    logger.info(f"Loading model from {ckpt_filename}")
+    state, sampling_fn = load_model(config, ckpt_filename)
+
     for sample_id in range(num_samples):
         typer.echo(f"Sample run {sample_id}...")
-        cf_data_vars = {
-            key: eval_dl.dataset.ds.data_vars[key]
-            for key in [
-                "rotated_latitude_longitude",
-                "time_bnds",
-                "grid_latitude_bnds",
-                "grid_longitude_bnds",
-            ]
-        }
-
-        preds = []
-        with logging_redirect_tqdm():
-            with tqdm(
-                total=len(eval_dl.dataset),
-                desc=f"Sampling",
-                unit=" timesteps",
-            ) as pbar:
-                for cond_batch, _, time_batch in eval_dl:
-                    # append any location-specific parameters
-                    cond_batch = location_params(cond_batch)
-
-                    coords = eval_dl.dataset.ds.sel(time=time_batch).coords
-
-                    np_samples = generate_np_samples(
-                        sampling_fn, score_model, config, cond_batch
-                    )
-
-                    xr_samples = np_samples_to_xr(
-                        np_samples,
-                        cond_batch,
-                        target_transform,
-                        coords,
-                        cf_data_vars,
-                    )
-
-                    preds.append(xr_samples)
-
-                    pbar.update(cond_batch.shape[0])
-
-        ds = xr.combine_by_coords(
-            preds,
-            compat="no_conflicts",
-            combine_attrs="drop_conflicts",
-            coords="all",
-            join="inner",
-            data_vars="all",
-        )
+        xr_samples = sample(sampling_fn, state, config, eval_dl, target_transform)
 
         output_filepath = output_dirpath / f"predictions-{shortuuid.uuid()}.nc"
-        typer.echo(f"Saving samples to {output_filepath}...")
-        ds.to_netcdf(output_filepath)
+
+        logger.info(f"Saving samples to {output_filepath}...")
+        xr_samples.to_netcdf(output_filepath)
 
 
 if __name__ == "__main__":

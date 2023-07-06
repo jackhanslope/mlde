@@ -108,12 +108,9 @@ def sample(
         typer.echo(f"Sample run {sample_id}...")
         xr_samples = sampling.sample(state["model"], eval_dl, target_transform)
 
-        output_filepath = os.path.join(
-            output_dirpath, f"predictions-{shortuuid.uuid()}.nc"
-        )
+        output_filepath = output_dirpath / f"predictions-{shortuuid.uuid()}.nc"
 
         logger.info(f"Saving predictions to {output_filepath}")
-        os.makedirs(output_dirpath, exist_ok=True)
         xr_samples.to_netcdf(output_filepath)
 
 
