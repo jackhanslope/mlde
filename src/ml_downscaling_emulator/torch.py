@@ -65,9 +65,10 @@ class XRDataset(Dataset):
     def __getitem__(self, idx):
         subds = self.sel(idx)
 
-        cond_var = self.variables_to_tensor(subds, self.variables)
-        cond_time = self.time_to_tensor(subds, cond_var.shape, self.time_range)
-        cond = torch.cat([cond_var, cond_time])
+        cond = self.variables_to_tensor(subds, self.variables)
+        if self.time_range is not None:
+            cond_time = self.time_to_tensor(subds, cond.shape, self.time_range)
+            cond = torch.cat([cond, cond_time])
 
         x = self.variables_to_tensor(subds, self.target_variables)
 
@@ -88,7 +89,9 @@ class EMXRDataset(XRDataset):
         return self.ds.isel(time=time_idx, ensemble_member=em_idx)
 
 
-def build_dataloader(xr_data, variables, target_variables, batch_size, shuffle):
+def build_dataloader(
+    xr_data, variables, target_variables, batch_size, shuffle, include_time_inputs
+):
     def custom_collate(batch):
         from torch.utils.data import default_collate
 
@@ -96,7 +99,10 @@ def build_dataloader(xr_data, variables, target_variables, batch_size, shuffle):
             [e[2] for e in batch]
         )
 
-    xr_dataset = EMXRDataset(xr_data, variables, target_variables, TIME_RANGE)
+    time_range = None
+    if include_time_inputs:
+        time_range = TIME_RANGE
+    xr_dataset = EMXRDataset(xr_data, variables, target_variables, time_range)
     data_loader = DataLoader(
         xr_dataset, batch_size=batch_size, shuffle=shuffle, collate_fn=custom_collate
     )
@@ -112,6 +118,7 @@ def get_dataloader(
     batch_size,
     split,
     ensemble_members,
+    include_time_inputs,
     evaluation=False,
     shuffle=True,
 ):
@@ -144,7 +151,12 @@ def get_dataloader(
     variables, target_variables = get_variables(model_src_dataset_name)
 
     data_loader = build_dataloader(
-        xr_data, variables, target_variables, batch_size, shuffle
+        xr_data,
+        variables,
+        target_variables,
+        batch_size,
+        shuffle,
+        include_time_inputs,
     )
 
     return data_loader, transform, target_transform

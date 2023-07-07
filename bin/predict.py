@@ -275,6 +275,7 @@ def main(
         transform_dir,
         split=split,
         ensemble_members=[ensemble_member],
+        include_time_inputs=config.data.time_inputs,
         evaluation=True,
         batch_size=config.eval.batch_size,
         shuffle=False,

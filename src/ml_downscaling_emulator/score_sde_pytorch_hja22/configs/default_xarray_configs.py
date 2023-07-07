@@ -48,6 +48,7 @@ def get_default_configs():
   data.uniform_dequantization = False
   data.input_transform_key = "pixelmmsstanur"
   data.target_transform_key = "v1"
+  data.time_inputs = False
 
   # model
   config.model = model = ml_collections.ConfigDict()

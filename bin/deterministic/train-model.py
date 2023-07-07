@@ -48,6 +48,7 @@ def main(
     snapshot_freq: int = 25,
     input_transform_key: str = "v1",
     target_transform_key: str = "v1",
+    time_inputs: bool = False,
 ):
 
     run_config = dict(
@@ -60,6 +61,7 @@ def main(
         loss="MSELoss",
         optimizer="Adam",
         device=("cuda" if torch.cuda.is_available() else "cpu"),
+        time_inputs=time_inputs,
     )
 
     run_name = workdir.name
@@ -109,6 +111,7 @@ def main(
         batch_size=batch_size,
         split="train",
         ensemble_members=dataset_meta.ensemble_members(),
+        include_time_inputs=run_config["time_inputs"],
         evaluation=False,
     )
     val_dl, _, _ = get_dataloader(
@@ -120,6 +123,7 @@ def main(
         batch_size=batch_size,
         split="val",
         ensemble_members=dataset_meta.ensemble_members(),
+        include_time_inputs=run_config["time_inputs"],
         evaluation=False,
     )
 

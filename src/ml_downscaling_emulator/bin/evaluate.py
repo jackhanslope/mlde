@@ -95,6 +95,7 @@ def sample(
         transform_dir,
         split=split,
         ensemble_members=[ensemble_member],
+        include_time_inputs=config["time_inputs"],
         evaluation=True,
         batch_size=batch_size,
         shuffle=False,
