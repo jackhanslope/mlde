@@ -5,6 +5,7 @@ from pathlib import Path
 from codetiming import Timer
 from knockknock import slack_sender
 from ml_collections import config_dict
+import numpy as np
 import shortuuid
 import torch
 import typer
@@ -154,6 +155,8 @@ def np_samples_to_xr(np_samples, target_transform, coords, cf_data_vars):
         "standard_name": "pred_pr",
         "units": "kg m-2 s-1",
     }
+    # add ensemble member axis to np samples
+    np_samples = np_samples[np.newaxis, :]
     pred_pr_var = (pred_pr_dims, np_samples, pred_pr_attrs)
 
     data_vars = {**cf_data_vars, "target_pr": pred_pr_var}

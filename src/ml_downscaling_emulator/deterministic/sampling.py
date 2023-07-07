@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
@@ -19,7 +20,7 @@ def generate_np_samples(model, cond_batch):
     return samples
 
 
-def np_samples_to_xr(samples, coords, target_transform, cf_data_vars):
+def np_samples_to_xr(np_samples, coords, target_transform, cf_data_vars):
     coords = {**dict(coords)}
 
     pred_pr_dims = ["ensemble_member", "time", "grid_latitude", "grid_longitude"]
@@ -28,7 +29,9 @@ def np_samples_to_xr(samples, coords, target_transform, cf_data_vars):
         "standard_name": "pred_pr",
         "units": "kg m-2 s-1",
     }
-    pred_pr_var = (pred_pr_dims, samples, pred_pr_attrs)
+    # add ensemble member axis to np samples
+    np_samples = np_samples[np.newaxis, :]
+    pred_pr_var = (pred_pr_dims, np_samples, pred_pr_attrs)
 
     data_vars = {**cf_data_vars, "target_pr": pred_pr_var}
 
