@@ -209,7 +209,6 @@ def sample(sampling_fn, state, config, eval_dl, target_transform):
 
                 xr_samples = np_samples_to_xr(
                     np_samples,
-                    cond_batch,
                     target_transform,
                     coords,
                     cf_data_vars,
