@@ -1,23 +1,23 @@
-from typing import List
 from codetiming import Timer
 import glob
 import logging
+from knockknock import slack_sender
+from ml_collections import config_dict
 import os
 from pathlib import Path
-from knockknock import slack_sender
 import shortuuid
 import torch
 import typer
+from typing import List
 import xarray as xr
 import yaml
 
 from mlde_utils import samples_path, DEFAULT_ENSEMBLE_MEMBER
 from mlde_utils.training.dataset import load_raw_dataset_split
 from ..deterministic import sampling
-from ..deterministic.utils import restore_checkpoint
+from ..deterministic.utils import create_model, restore_checkpoint
 from ..torch import get_dataloader
 
-from ..unet import unet
 
 logging.basicConfig(
     level=logging.INFO,
@@ -37,19 +37,18 @@ def callback():
 def load_config(config_path):
     logger.info(f"Loading config from {config_path}")
     with open(config_path) as f:
-        config = yaml.unsafe_load(f)
+        config = config_dict.ConfigDict(yaml.unsafe_load(f))
 
     return config
 
 
-def load_model(num_predictors, ckpt_filename):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    logging.info(f"Using device {device}")
-
-    model = unet.UNet(num_predictors, 1).to(device=device)
+def load_model(config, num_predictors, ckpt_filename):
+    model = torch.nn.DataParallel(
+        create_model(config, num_predictors).to(device=config.device)
+    )
     optimizer = torch.optim.Adam(model.parameters())
     state = dict(step=0, epoch=0, optimizer=optimizer, model=model)
-    state, loaded = restore_checkpoint(ckpt_filename, state, device)
+    state, loaded = restore_checkpoint(ckpt_filename, state, config.device)
     assert loaded, "Did not load state from checkpoint"
 
     return state
@@ -63,7 +62,7 @@ def sample(
     dataset: str = typer.Option(...),
     split: str = "val",
     epoch: int = typer.Option(...),
-    batch_size: int = typer.Option(...),
+    batch_size: int = None,
     num_samples: int = 1,
     input_transform_key: str = None,
     ensemble_member: str = DEFAULT_ENSEMBLE_MEMBER,
@@ -72,14 +71,16 @@ def sample(
     config_path = os.path.join(workdir, "config.yml")
     config = load_config(config_path)
 
+    if batch_size is not None:
+        config.eval.batch_size = batch_size
     if input_transform_key is not None:
-        config["input_transform_key"] = input_transform_key
+        config.data.input_transform_key = input_transform_key
 
     output_dirpath = samples_path(
         workdir=workdir,
         checkpoint=f"epoch-{epoch}",
         dataset=dataset,
-        input_xfm=config["input_transform_key"],
+        input_xfm=config.data.input_transform_key,
         split=split,
         ensemble_member=ensemble_member,
     )
@@ -89,21 +90,21 @@ def sample(
 
     eval_dl, _, target_transform = get_dataloader(
         dataset,
-        config["dataset"],
-        config["input_transform_key"],
-        config["target_transform_key"],
+        config.data.dataset_name,
+        config.data.input_transform_key,
+        config.data.target_transform_key,
         transform_dir,
         split=split,
         ensemble_members=[ensemble_member],
-        include_time_inputs=config["time_inputs"],
+        include_time_inputs=config.data.time_inputs,
         evaluation=True,
-        batch_size=batch_size,
+        batch_size=config.eval.batch_size,
         shuffle=False,
     )
 
     ckpt_filename = os.path.join(workdir, "checkpoints", f"epoch_{epoch}.pth")
     num_predictors = eval_dl.dataset[0][0].shape[0]
-    state = load_model(num_predictors, ckpt_filename)
+    state = load_model(config, num_predictors, ckpt_filename)
 
     for sample_id in range(num_samples):
         typer.echo(f"Sample run {sample_id}...")

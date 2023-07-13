@@ -1,5 +1,16 @@
 import logging
 import os
+import torch.nn as nn
+
+from ..unet import unet
+
+
+def create_model(config, num_predictors):
+    if config.model.name == "u-net":
+        return unet.UNet(num_predictors, 1)
+    if config.model.name == "debug":
+        return nn.Conv2d(num_predictors, 1, 3, stride=1, padding=1)
+    raise NotImplementedError(f"Model {config.model.name} not supported yet!")
 
 
 def restore_checkpoint(ckpt_dir, state, device):

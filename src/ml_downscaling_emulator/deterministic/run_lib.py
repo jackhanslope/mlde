@@ -1,32 +1,22 @@
 import logging
 import os
-from pathlib import Path
 
+from absl import flags
 from codetiming import Timer
-from knockknock import slack_sender
 import numpy as np
 import torch
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
-import typer
 import yaml
 
 from mlde_utils import DatasetMetadata
 
-from ml_downscaling_emulator.unet import unet
-from ml_downscaling_emulator.training import log_epoch, track_run
-from ml_downscaling_emulator.deterministic.utils import save_checkpoint
-from ml_downscaling_emulator.torch import get_dataloader
+from ..training import log_epoch, track_run
+from .utils import restore_checkpoint, save_checkpoint, create_model
+from ..torch import get_dataloader
 
-UNET_ARCHNAME = "u-net"
-SIMPLE_CONV_ARCHNAME = "simple-conv"
+FLAGS = flags.FLAGS
 EXPERIMENT_NAME = os.getenv("WANDB_EXPERIMENT_NAME")
-TAGS = {
-    UNET_ARCHNAME: ["baseline", UNET_ARCHNAME],
-    SIMPLE_CONV_ARCHNAME: ["baseline", SIMPLE_CONV_ARCHNAME, "debug"],
-}
-
-app = typer.Typer()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -36,36 +26,23 @@ logger = logging.getLogger()
 logger.setLevel("INFO")
 
 
-@app.command()
+def val_loss(config, val_dl, eval_step_fn, state):
+    val_set_loss = 0.0
+    for val_cond_batch, val_x_batch, val_time_batch in val_dl:
+        val_x_batch = val_x_batch.to(config.device)
+        val_cond_batch = val_cond_batch.to(config.device)
+
+        val_batch_loss = eval_step_fn(state, val_x_batch, val_cond_batch)
+
+        # Progress
+        val_set_loss += val_batch_loss.item()
+        val_set_loss = val_set_loss / len(val_dl)
+
+    return val_set_loss
+
+
 @Timer(name="train", text="{name}: {minutes:.1f} minutes", logger=logging.info)
-@slack_sender(webhook_url=os.getenv("KK_SLACK_WH_URL"), channel="general")
-def main(
-    workdir: Path,
-    dataset: str = typer.Option(...),
-    epochs: int = 200,
-    learning_rate: float = 2e-4,
-    batch_size: int = 64,
-    snapshot_freq: int = 25,
-    input_transform_key: str = "v1",
-    target_transform_key: str = "v1",
-    time_inputs: bool = False,
-):
-
-    run_config = dict(
-        dataset=dataset,
-        input_transform_key=input_transform_key,
-        target_transform_key=target_transform_key,
-        batch_size=batch_size,
-        epochs=epochs,
-        architecture="u-net",
-        loss="MSELoss",
-        optimizer="Adam",
-        device=("cuda" if torch.cuda.is_available() else "cpu"),
-        time_inputs=time_inputs,
-    )
-
-    run_name = workdir.name
-
+def train(config, workdir):
     os.makedirs(workdir, exist_ok=True)
 
     gfile_stream = open(os.path.join(workdir, "stdout.txt"), "w")
@@ -96,58 +73,63 @@ def main(
     checkpoint_meta_dir = os.path.join(workdir, "checkpoints-meta", "checkpoint.pth")
     os.makedirs(os.path.dirname(checkpoint_meta_dir), exist_ok=True)
 
-    device = torch.device(run_config["device"])
-    logging.info(f"Using device {device}")
-
-    dataset_meta = DatasetMetadata(dataset)
+    dataset_meta = DatasetMetadata(config.data.dataset_name)
 
     # Build dataloaders
     train_dl, _, _ = get_dataloader(
-        dataset,
-        dataset,
-        input_transform_key,
-        target_transform_key,
+        config.data.dataset_name,
+        config.data.dataset_name,
+        config.data.input_transform_key,
+        config.data.target_transform_key,
         transform_dir,
-        batch_size=batch_size,
+        batch_size=config.training.batch_size,
         split="train",
         ensemble_members=dataset_meta.ensemble_members(),
-        include_time_inputs=run_config["time_inputs"],
+        include_time_inputs=config.data.time_inputs,
         evaluation=False,
     )
     val_dl, _, _ = get_dataloader(
-        dataset,
-        dataset,
-        input_transform_key,
-        target_transform_key,
+        config.data.dataset_name,
+        config.data.dataset_name,
+        config.data.input_transform_key,
+        config.data.target_transform_key,
         transform_dir,
-        batch_size=batch_size,
+        batch_size=config.training.batch_size,
         split="val",
         ensemble_members=dataset_meta.ensemble_members(),
-        include_time_inputs=run_config["time_inputs"],
+        include_time_inputs=config.data.time_inputs,
         evaluation=False,
     )
 
     # Setup model, loss and optimiser
     num_predictors = train_dl.dataset[0][0].shape[0]
-    model = unet.UNet(num_predictors, 1).to(device=device)
-    if run_config["loss"] == "MSELoss":
-        criterion = torch.nn.MSELoss().to(device)
-    else:
-        raise NotImplementedError(f'Loss {run_config["loss"]} not supported yet!')
+    model = torch.nn.DataParallel(
+        create_model(config, num_predictors).to(device=config.device)
+    )
 
-    if run_config["optimizer"] == "Adam":
-        optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    if config.model.loss == "MSELoss":
+        criterion = torch.nn.MSELoss().to(config.device)
+    else:
+        raise NotImplementedError(f"Loss {config.model.loss} not supported yet!")
+
+    if config.optim.optimizer == "Adam":
+        optimizer = torch.optim.Adam(model.parameters(), lr=config.optim.lr)
     else:
         raise NotImplementedError(
-            f'Optimizer {run_config["optimizer"]} not supported yet!'
+            f"Optimizer {config.optim.optimizer} not supported yet!"
         )
 
     state = dict(optimizer=optimizer, model=model, step=0, epoch=0)
+    # Resume training when intermediate checkpoints are detected
+    state, _ = restore_checkpoint(checkpoint_meta_dir, state, config.device)
+    initial_epoch = (
+        int(state["epoch"]) + 1
+    )  # start from the epoch after the one currently reached
 
     initial_epoch = (
         int(state["epoch"]) + 1
     )  # start from the epoch after the one currently reached
-    step = state["step"]
+    # step = state["step"]
 
     def loss_fn(model, batch, cond):
         return criterion(model(cond), batch)
@@ -197,7 +179,9 @@ def main(
         optimizer.zero_grad()
         loss = loss_fn(model, batch, cond)
         loss.backward()
-        optimize_fn(optimizer, model.parameters(), step=state["step"], lr=learning_rate)
+        optimize_fn(
+            optimizer, model.parameters(), step=state["step"], lr=config.optim.lr
+        )
         state["step"] += 1
 
         return loss
@@ -205,17 +189,28 @@ def main(
     # save the config
     config_path = os.path.join(workdir, "config.yml")
     with open(config_path, "w") as f:
-        yaml.dump(run_config, f)
+        yaml.dump(config, f)
+
+    run_name = os.path.basename(workdir)
+    run_config = dict(
+        dataset=config.data.dataset_name,
+        input_transform_key=config.data.input_transform_key,
+        target_transform_key=config.data.target_transform_key,
+        architecture=config.model.name,
+        name=run_name,
+        loss=config.model.loss,
+        time_inputs=config.data.time_inputs,
+    )
 
     with track_run(
-        EXPERIMENT_NAME, run_name, run_config, TAGS[run_config["architecture"]], tb_dir
+        EXPERIMENT_NAME, run_name, run_config, [config.model.name, "baseline"], tb_dir
     ) as (wandb_run, tb_writer):
         # Fit model
         wandb_run.watch(model, criterion=criterion, log_freq=100)
 
         logging.info("Starting training loop at epoch %d." % (initial_epoch,))
 
-        for epoch in range(initial_epoch, epochs + 1):
+        for epoch in range(initial_epoch, config.training.n_epochs + 1):
             state["epoch"] = epoch
             # Update model based on training data
             model.train()
@@ -228,8 +223,8 @@ def main(
                     unit=" timesteps",
                 ) as pbar:
                     for (cond_batch, x_batch, time_batch) in train_dl:
-                        cond_batch = cond_batch.to(device)
-                        x_batch = x_batch.to(device)
+                        cond_batch = cond_batch.to(config.device)
+                        x_batch = x_batch.to(config.device)
 
                         train_batch_loss = train_step_fn(state, x_batch, cond_batch)
                         train_set_loss += train_batch_loss.item()
@@ -237,29 +232,24 @@ def main(
                         # Log progress so far on epoch
                         pbar.update(cond_batch.shape[0])
 
-                        step += 1
             train_set_loss = train_set_loss / len(train_dl)
 
+            # Save a temporary checkpoint to resume training after each epoch
+            save_checkpoint(checkpoint_meta_dir, state)
+
+            # Report the loss on an validation dataset each epoch
             model.eval()
-            val_set_loss = 0.0
-            for val_cond_batch, val_x_batch, val_time_batch in val_dl:
-                val_x_batch = val_x_batch.to(device)
-                val_cond_batch = val_cond_batch.to(device)
-                val_batch_loss = eval_step_fn(state, val_x_batch, val_cond_batch)
-
-                # Progress
-                val_set_loss += val_batch_loss.item()
-                val_set_loss = val_set_loss / len(val_dl)
-
+            val_set_loss = val_loss(config, val_dl, eval_step_fn, state)
             epoch_metrics = {
                 "epoch/train/loss": train_set_loss,
                 "epoch/val/loss": val_set_loss,
             }
             log_epoch(state["epoch"], epoch_metrics, wandb_run, tb_writer)
             # Checkpoint model
-            if (state["epoch"] != 0 and state["epoch"] % snapshot_freq == 0) or state[
-                "epoch"
-            ] == epochs:
+            if (
+                state["epoch"] != 0
+                and state["epoch"] % config.training.snapshot_freq == 0
+            ) or state["epoch"] == config.training.n_epochs:
                 checkpoint_path = os.path.join(
                     checkpoint_dir, f"epoch_{state['epoch']}.pth"
                 )
@@ -269,7 +259,3 @@ def main(
                 )
 
     logging.info(f"Finished {os.path.basename(__file__)}")
-
-
-if __name__ == "__main__":
-    app()
