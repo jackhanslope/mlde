@@ -44,7 +44,7 @@ def queue_cmd(depends_on, sampling_jobs, sampling_duration):
         "-m": "16",
         "-q": "cnu,gpu",
         "-t": str(sampling_duration),
-        "--condaenv": "cuda-downscaling",
+        "--condaenv": "cuda-downscaling-time-inputs",
         "--array": f"1-{sampling_jobs}",
     }
     if depends_on is not None:
