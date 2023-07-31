@@ -53,7 +53,7 @@ def main(
     model_run_id: str,
     cpm_dataset: str,
     sde: str,
-    config: str = "xarray_cncsnpp_continuous",
+    config: str = "xarray_12em_cncsnpp_continuous",
     memory: int = 64,
     duration: int = 72,
 ):
