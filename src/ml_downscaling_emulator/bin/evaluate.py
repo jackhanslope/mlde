@@ -140,13 +140,12 @@ def sample_id(
     eval_ds = load_raw_dataset_split(dataset, split).sel(
         ensemble_member=[ensemble_member]
     )
-    samples = eval_ds[variable].values
-    predictions = sampling.np_samples_to_xr(samples, eval_ds, target_transform=None)
+    xr_samples = sampling.sample_id(variable, eval_ds)
 
     output_filepath = os.path.join(output_dirpath, f"predictions-{shortuuid.uuid()}.nc")
 
     logger.info(f"Saving predictions to {output_filepath}")
-    predictions.to_netcdf(output_filepath)
+    xr_samples.to_netcdf(output_filepath)
 
 
 @app.command()

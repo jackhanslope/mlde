@@ -29,8 +29,6 @@ def np_samples_to_xr(np_samples, coords, target_transform, cf_data_vars):
         "standard_name": "pred_pr",
         "units": "kg m-2 s-1",
     }
-    # add ensemble member axis to np samples
-    np_samples = np_samples[np.newaxis, :]
     pred_pr_var = (pred_pr_dims, np_samples, pred_pr_attrs)
 
     data_vars = {**cf_data_vars, "target_pr": pred_pr_var}
@@ -64,7 +62,8 @@ def sample(model, eval_dl, target_transform):
                 for cond_batch, _, time_batch in eval_dl:
                     coords = eval_dl.dataset.ds.sel(time=time_batch).coords
                     batch_np_samples = generate_np_samples(model, cond_batch)
-
+                    # add ensemble member axis to np samples
+                    batch_np_samples = batch_np_samples[np.newaxis, :]
                     xr_samples = np_samples_to_xr(
                         batch_np_samples, coords, target_transform, cf_data_vars
                     )
@@ -82,3 +81,24 @@ def sample(model, eval_dl, target_transform):
     )
 
     return ds
+
+
+def sample_id(variable: str, eval_ds: xr.Dataset) -> xr.Dataset:
+    """Create a Dataset of pr samples set to the values the given variable from the dataset."""
+    cf_data_vars = {
+        key: eval_ds.data_vars[key]
+        for key in [
+            "rotated_latitude_longitude",
+            "time_bnds",
+            "grid_latitude_bnds",
+            "grid_longitude_bnds",
+        ]
+        if key in eval_ds.variables
+    }
+    coords = eval_ds.coords
+    np_samples = eval_ds[variable].data
+    xr_samples = np_samples_to_xr(
+        np_samples, coords=coords, target_transform=None, cf_data_vars=cf_data_vars
+    )
+
+    return xr_samples
