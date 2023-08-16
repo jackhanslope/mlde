@@ -36,7 +36,7 @@ def queue_cmd(duration, memory):
         "-m": str(memory),
         "-q": "cnu,gpu",
         "-t": str(duration),
-        "--condaenv": "cuda-downscaling",
+        "--condaenv": "cuda-downscaling-time-inputs",
     }
 
     return queue_basecmd + [arg for item in queue_opts.items() for arg in item]
@@ -53,7 +53,7 @@ def main(
     model_run_id: str,
     cpm_dataset: str,
     sde: str,
-    config: str = "xarray_cncsnpp_continuous",
+    config: str = "xarray_12em_cncsnpp_continuous",
     memory: int = 64,
     duration: int = 72,
 ):

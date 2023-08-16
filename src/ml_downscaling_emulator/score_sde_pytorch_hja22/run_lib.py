@@ -53,7 +53,7 @@ EXPERIMENT_NAME = os.getenv("WANDB_EXPERIMENT_NAME")
 
 def val_loss(config, eval_ds, eval_step_fn, state):
   val_set_loss = 0.0
-  for eval_cond_batch, eval_x_batch in eval_ds:
+  for eval_cond_batch, eval_x_batch, eval_time_batch in eval_ds:
     # eval_cond_batch, eval_x_batch = next(iter(eval_ds))
     eval_x_batch = eval_x_batch.to(config.device)
     eval_cond_batch = eval_cond_batch.to(config.device)
@@ -110,8 +110,8 @@ def train(config, workdir):
     ) as (wandb_run, writer):
     # Build dataloaders
     dataset_meta = DatasetMetadata(config.data.dataset_name)
-    train_dl, _, _ = get_dataloader(config.data.dataset_name, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.training.batch_size, split="train", ensemble_members=dataset_meta.ensemble_members(), evaluation=False)
-    eval_dl, _, _ = get_dataloader(config.data.dataset_name, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.training.batch_size, split="val", ensemble_members=dataset_meta.ensemble_members(), evaluation=False)
+    train_dl, _, _ = get_dataloader(config.data.dataset_name, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.training.batch_size, split="train", ensemble_members=dataset_meta.ensemble_members(), include_time_inputs=config.data.time_inputs, evaluation=False)
+    eval_dl, _, _ = get_dataloader(config.data.dataset_name, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.training.batch_size, split="val", ensemble_members=dataset_meta.ensemble_members(), include_time_inputs=config.data.time_inputs, evaluation=False)
 
     # Initialize model.
     score_model = mutils.create_model(config)
@@ -171,7 +171,7 @@ def train(config, workdir):
       train_set_loss = 0.0
       with logging_redirect_tqdm():
         with tqdm(total=len(train_dl.dataset), desc=f"Epoch {state['epoch']}", unit=' timesteps') as pbar:
-          for cond_batch, x_batch in train_dl:
+          for cond_batch, x_batch, time_batch in train_dl:
 
             x_batch = x_batch.to(config.device)
             cond_batch = cond_batch.to(config.device)

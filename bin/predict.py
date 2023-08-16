@@ -5,6 +5,7 @@ from pathlib import Path
 from codetiming import Timer
 from knockknock import slack_sender
 from ml_collections import config_dict
+import numpy as np
 import shortuuid
 import torch
 import typer
@@ -14,9 +15,9 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 import xarray as xr
 import yaml
 
-from ml_downscaling_emulator.torch import EMXRDataset
+from ml_downscaling_emulator.torch import get_dataloader
 from mlde_utils import samples_path, DEFAULT_ENSEMBLE_MEMBER
-from mlde_utils.training.dataset import get_dataset, get_variables
+from mlde_utils.training.dataset import get_variables
 
 from ml_downscaling_emulator.score_sde_pytorch_hja22.losses import get_optimizer
 from ml_downscaling_emulator.score_sde_pytorch_hja22.models.ema import (
@@ -134,7 +135,7 @@ def load_model(config, ckpt_filename):
     return state, sampling_fn
 
 
-def generate_samples(sampling_fn, score_model, config, cond_batch):
+def generate_np_samples(sampling_fn, score_model, config, cond_batch):
     cond_batch = cond_batch.to(config.device)
 
     samples = sampling_fn(score_model, cond_batch)[0]
@@ -145,20 +146,18 @@ def generate_samples(sampling_fn, score_model, config, cond_batch):
     return samples
 
 
-def generate_predictions(
-    sampling_fn, score_model, config, cond_batch, target_transform, coords, cf_data_vars
-):
-    samples = generate_samples(sampling_fn, score_model, config, cond_batch)
-
+def np_samples_to_xr(np_samples, target_transform, coords, cf_data_vars):
     coords = {**dict(coords)}
 
-    pred_pr_dims = ["time", "grid_latitude", "grid_longitude"]
+    pred_pr_dims = ["ensemble_member", "time", "grid_latitude", "grid_longitude"]
     pred_pr_attrs = {
         "grid_mapping": "rotated_latitude_longitude",
         "standard_name": "pred_pr",
         "units": "kg m-2 s-1",
     }
-    pred_pr_var = (pred_pr_dims, samples, pred_pr_attrs)
+    # add ensemble member axis to np samples
+    np_samples = np_samples[np.newaxis, :]
+    pred_pr_var = (pred_pr_dims, np_samples, pred_pr_attrs)
 
     data_vars = {**cf_data_vars, "target_pr": pred_pr_var}
 
@@ -175,6 +174,59 @@ def load_config(config_path):
         config = config_dict.ConfigDict(yaml.unsafe_load(f))
 
     return config
+
+
+def sample(sampling_fn, state, config, eval_dl, target_transform):
+    score_model = state["model"]
+    location_params = state["location_params"]
+
+    cf_data_vars = {
+        key: eval_dl.dataset.ds.data_vars[key]
+        for key in [
+            "rotated_latitude_longitude",
+            "time_bnds",
+            "grid_latitude_bnds",
+            "grid_longitude_bnds",
+        ]
+    }
+
+    preds = []
+    with logging_redirect_tqdm():
+        with tqdm(
+            total=len(eval_dl.dataset),
+            desc=f"Sampling",
+            unit=" timesteps",
+        ) as pbar:
+            for cond_batch, _, time_batch in eval_dl:
+                # append any location-specific parameters
+                cond_batch = location_params(cond_batch)
+
+                coords = eval_dl.dataset.ds.sel(time=time_batch).coords
+
+                np_samples = generate_np_samples(
+                    sampling_fn, score_model, config, cond_batch
+                )
+
+                xr_samples = np_samples_to_xr(
+                    np_samples,
+                    target_transform,
+                    coords,
+                    cf_data_vars,
+                )
+
+                preds.append(xr_samples)
+
+                pbar.update(cond_batch.shape[0])
+
+    ds = xr.combine_by_coords(
+        preds,
+        compat="no_conflicts",
+        combine_attrs="drop_conflicts",
+        coords="all",
+        join="inner",
+        data_vars="all",
+    )
+    return ds
 
 
 @app.command()
@@ -211,15 +263,10 @@ def main(
     with open(sampling_config_path, "w") as f:
         f.write(config.to_yaml())
 
-    ckpt_filename = os.path.join(workdir, "checkpoints", f"epoch_{epoch}.pth")
-    logger.info(f"Loading model from {ckpt_filename}")
-    state, sampling_fn = load_model(config, ckpt_filename)
-    score_model = state["model"]
-    location_params = state["location_params"]
     transform_dir = os.path.join(workdir, "transforms")
 
     # Data
-    xr_data_eval, _, target_transform = get_dataset(
+    eval_dl, _, target_transform = get_dataloader(
         dataset,
         config.data.dataset_name,
         config.data.input_transform_key,
@@ -227,69 +274,24 @@ def main(
         transform_dir,
         split=split,
         ensemble_members=[ensemble_member],
+        include_time_inputs=config.data.time_inputs,
         evaluation=True,
+        batch_size=config.eval.batch_size,
+        shuffle=False,
     )
-    variables, _ = get_variables(config.data.dataset_name)
+
+    ckpt_filename = os.path.join(workdir, "checkpoints", f"epoch_{epoch}.pth")
+    logger.info(f"Loading model from {ckpt_filename}")
+    state, sampling_fn = load_model(config, ckpt_filename)
 
     for sample_id in range(num_samples):
         typer.echo(f"Sample run {sample_id}...")
-        cf_data_vars = {
-            key: xr_data_eval.data_vars[key]
-            for key in [
-                "rotated_latitude_longitude",
-                "time_bnds",
-                "grid_latitude_bnds",
-                "grid_longitude_bnds",
-            ]
-        }
-        preds = []
-        with logging_redirect_tqdm():
-            with tqdm(
-                total=len(xr_data_eval["ensemble_member"]) * len(xr_data_eval["time"]),
-                desc=f"Sampling",
-                unit=" timesteps",
-            ) as pbar:
-                for em, em_xr_data_eval in xr_data_eval.groupby("ensemble_member"):
-                    for i in range(
-                        0, em_xr_data_eval["time"].shape[0], config.eval.batch_size
-                    ):
-                        batch_times = em_xr_data_eval["time"][
-                            i : i + config.eval.batch_size
-                        ]
-                        batch_ds = em_xr_data_eval.sel(time=batch_times)
-
-                        cond_batch = EMXRDataset.to_tensor(batch_ds, variables)
-                        # append any location-specific parameters
-                        cond_batch = location_params(cond_batch)
-
-                        coords = batch_ds.coords
-
-                        preds.append(
-                            generate_predictions(
-                                sampling_fn,
-                                score_model,
-                                config,
-                                cond_batch,
-                                target_transform,
-                                coords,
-                                cf_data_vars,
-                            )
-                        )
-
-                        pbar.update(cond_batch.shape[0])
-
-        ds = xr.combine_by_coords(
-            preds,
-            compat="no_conflicts",
-            combine_attrs="drop_conflicts",
-            coords="all",
-            join="inner",
-            data_vars="all",
-        )
+        xr_samples = sample(sampling_fn, state, config, eval_dl, target_transform)
 
         output_filepath = output_dirpath / f"predictions-{shortuuid.uuid()}.nc"
-        typer.echo(f"Saving samples to {output_filepath}...")
-        ds.to_netcdf(output_filepath)
+
+        logger.info(f"Saving samples to {output_filepath}...")
+        xr_samples.to_netcdf(output_filepath)
 
 
 if __name__ == "__main__":
