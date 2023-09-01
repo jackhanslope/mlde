@@ -1,30 +1,55 @@
-from cmethods import CMethods
+from typing import Callable
 import numpy as np
 import xarray as xr
 
 
-def qm(sim_train_da, ml_train_da, ml_eval_da):
-    values = np.zeros(ml_eval_da.shape, float)
-    for ilat in range(len(ml_eval_da["grid_latitude"])):
-        for ilon in range(len(ml_eval_da["grid_longitude"])):
-            values[:, ilat, ilon] = CMethods.quantile_mapping(
-                sim_train_da.isel(grid_latitude=ilat, grid_longitude=ilon),
-                ml_train_da.isel(grid_latitude=ilat, grid_longitude=ilon),
-                ml_eval_da.isel(grid_latitude=ilat, grid_longitude=ilon),
-                n_quantiles=250,
-                kind="+",
-            )
-
-    qmapped = xr.zeros_like(ml_eval_da)
-    qmapped.data = values
-
-    return qmapped
+def _get_cdf(x, xbins):
+    pdf, _ = np.histogram(x, xbins)
+    return np.insert(np.cumsum(pdf), 0, 0.0)
 
 
-def qm_vec(sim_train_da, ml_train_da, ml_eval_da):
+def qm_1d_dom_aware(
+    obs: np.ndarray,
+    simh: np.ndarray,
+    simp: np.ndarray,
+    n_quantiles: int = 250,
+    kind: str = "+",
+):
+    """
+    A 1D quantile mapping function replacement for CMethods.quantile_mapping
+
+    Unlike the CMethods version it takes into account that the obs and simh may have different max and mins (i.e. their CDFs have different supported domains). The CMethods version just uses a domain between the min and max of both obs and simh.
+    """
+    obs, simh, simp = np.array(obs), np.array(simh), np.array(simp)
+
+    obs_min = np.amin(obs)
+    obs_max = np.amax(obs)
+    wide = abs(obs_max - obs_min) / n_quantiles
+    xbins_obs = np.arange(obs_min, obs_max + wide, wide)
+
+    simh_min = np.amin(simh)
+    simh_max = np.amax(simh)
+    wide = abs(simh_max - simh_min) / n_quantiles
+    xbins_simh = np.arange(simh_min, simh_max + wide, wide)
+
+    cdf_obs = _get_cdf(obs, xbins_obs)
+    cdf_simh = _get_cdf(simh, xbins_simh)
+
+    epsilon = np.interp(simp, xbins_simh, cdf_simh)
+
+    return np.interp(epsilon, cdf_obs, xbins_obs)
+
+
+def xrqm(
+    sim_train_da: xr.DataArray,
+    ml_train_da: xr.DataArray,
+    ml_eval_da: xr.DataArray,
+    qm_func: Callable = qm_1d_dom_aware,
+):
+    """Apply a 1D quantile mapping function point-by-point to a multi-dimensional xarray DataArray."""
     return (
         xr.apply_ufunc(
-            CMethods.quantile_mapping,  # first the function
+            qm_func,  # first the function
             sim_train_da,  # now arguments in the order expected by the function
             ml_train_da,
             ml_eval_da,
