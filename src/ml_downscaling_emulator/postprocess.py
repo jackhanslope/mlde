@@ -65,6 +65,6 @@ def xrqm(
             ),  # dimensions allowed to change size. Must be set!
             vectorize=True,
         )
-        .transpose("time", "grid_latitude", "grid_longitude")
+        .transpose("ensemble_member", "time", "grid_latitude", "grid_longitude")
         .assign_coords(time=ml_eval_da["time"])
     )
