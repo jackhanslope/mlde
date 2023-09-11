@@ -54,10 +54,12 @@ def filter(
             ensemble_member=ensemble_member,
         )
     ):
+        logger.info(f"Working on {sample_filepath}")
         samples_ds = xr.open_dataset(sample_filepath)
 
         filtered_samples_filepath = filtered_samples_dirpath / sample_filepath.name
 
+        logger.info(f"Saving to {filtered_samples_filepath}")
         samples_ds.sel(time=slice(*TIME_PERIODS[time_period])).to_netcdf(
             filtered_samples_filepath
         )
