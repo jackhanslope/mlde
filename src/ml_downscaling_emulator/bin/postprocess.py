@@ -44,19 +44,17 @@ def filter(
     )
     os.makedirs(filtered_samples_dirpath, exist_ok=False)
 
-    samples_filepaths_to_filter = samples_glob(
-        samples_path(
-            workdir,
-            checkpoint=checkpoint,
-            input_xfm=input_xfm,
-            dataset=dataset,
-            split=split,
-            ensemble_member=ensemble_member,
-        )
+    samples_filepaths_to_filter = samples_path(
+        workdir,
+        checkpoint=checkpoint,
+        input_xfm=input_xfm,
+        dataset=dataset,
+        split=split,
+        ensemble_member=ensemble_member,
     )
 
     logger.info(f"Found for filtering: {samples_filepaths_to_filter}")
-    for sample_filepath in samples_filepaths_to_filter:
+    for sample_filepath in samples_glob(samples_filepaths_to_filter):
         logger.info(f"Working on {sample_filepath}")
         samples_ds = xr.open_dataset(sample_filepath)
 
