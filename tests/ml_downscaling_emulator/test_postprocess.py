@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-import xarray as xr
 
 from ml_downscaling_emulator.postprocess import xrqm, qm_1d_dom_aware
 
@@ -59,48 +58,15 @@ def lon_range():
 
 
 @pytest.fixture
-def sim_train_da(time_range, lat_range, lon_range):
-    rng = np.random.default_rng()
-    return xr.DataArray(
-        data=rng.normal(
-            loc=1.0, size=(len(time_range), len(lat_range), len(lon_range))
-        ),
-        dims=["time", "grid_latitude", "grid_longitude"],
-        name="target_pr",
-        coords=dict(
-            time=(["time"], time_range),
-            grid_latitude=(["grid_latitude"], lat_range),
-            grid_longitude=(["grid_longitude"], lon_range),
-        ),
-    )
+def sim_train_da(dataset_factory):
+    return dataset_factory(time_len=2000).sel(ensemble_member=["01"])["target_pr"]
 
 
 @pytest.fixture
-def ml_train_da(time_range, lat_range, lon_range):
-    rng = np.random.default_rng()
-    return xr.DataArray(
-        data=rng.normal(size=(len(time_range), len(lat_range), len(lon_range))),
-        dims=["time", "grid_latitude", "grid_longitude"],
-        name="pred_pr",
-        coords=dict(
-            time=(["time"], time_range),
-            grid_latitude=(["grid_latitude"], lat_range),
-            grid_longitude=(["grid_longitude"], lon_range),
-        ),
-    )
+def ml_train_da(samples_factory):
+    return samples_factory(time_len=2000)["pred_pr"]
 
 
 @pytest.fixture
-def ml_eval_da(lat_range, lon_range):
-    eval_time_range = np.linspace(3, 4, 50)
-    rng = np.random.default_rng()
-    return xr.DataArray(
-        data=rng.normal(size=(len(eval_time_range), len(lat_range), len(lon_range))),
-        dims=["time", "grid_latitude", "grid_longitude"],
-        name="pred_pr",
-        coords=dict(
-            time=(["time"], eval_time_range),
-            grid_latitude=(["grid_latitude"], lat_range),
-            grid_longitude=(["grid_longitude"], lon_range),
-        ),
-    )
+def ml_eval_da(samples_factory):
+    return samples_factory(start_year=2060, time_len=1000)["pred_pr"]
