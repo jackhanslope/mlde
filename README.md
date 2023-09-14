@@ -1,11 +1,24 @@
 # ml-downscaling-emulation
 
-## Dependencies
+## Setup
+### Dependencies
 
-1. Create conda environment: `conda env create -f environment.lock.yml`
+1. Set the right python version `pyenv local 3.9.15`
+1. Create a virtual environment: `echo layout python >> .envrc` and `direnv allow`
+1. Update pip: `pip install -U pip`
+1. Install the dependencies: `pip install -r requirements.txt`
 1. Clone and install https://github.com/henryaddison/mlde_utils into the environment: e.g. `pip install -e ../mlde_utils`
 1. Install ml_downscaling_emulator locally: `pip install -e .`
 1. Install unet code: `git clone --depth 1 git@github.com:henryaddison/Pytorch-UNet src/ml_downscaling_emulator/unet`
+
+### Environment variables
+- `DERIVED_DATA`
+- `MOOSE_DERIVED_DATA`. Probably `${DERIVED_DATA}/MOOSE`
+- `KK_SLACK_WH_URL`. Can just set to `HTTPS://HOOKS.SLACK.COM`
+
+### Smoke screen
+Run `bin/local-test-train`.
+If this runs, we should be set up properly.
 
 
 # Score-Based Generative Modeling through Stochastic Differential Equations
