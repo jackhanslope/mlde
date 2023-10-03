@@ -50,7 +50,7 @@ class ScoreNet(nn.Module):
     super().__init__()
     self.config = config
     marginal_prob_std=None
-    if config.data.dataset_name == "hurricanes":
+    if config.data.dataset == "hurricanes":
         output_channels = config.data.output_channels
         input_channels = config.data.variable_channels + output_channels
     else:

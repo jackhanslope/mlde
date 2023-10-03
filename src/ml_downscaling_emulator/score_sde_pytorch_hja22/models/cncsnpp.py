@@ -146,7 +146,7 @@ class cNCSNpp(nn.Module):
     else:
       cond_time_channels = 0
 
-    if config.data.dataset_name == "hurricanes":
+    if config.data.dataset == "hurricanes":
         output_channels = config.data.output_channels
         channels = config.data.variable_channels + output_channels
     else:
