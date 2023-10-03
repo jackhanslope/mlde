@@ -50,9 +50,13 @@ class ScoreNet(nn.Module):
     super().__init__()
     self.config = config
     marginal_prob_std=None
-    cond_var_channels, output_channels = list(map(len, get_variables(config.data.dataset_name)))
-    cond_time_channels = 3
-    input_channels = output_channels + cond_var_channels + cond_time_channels + config.model.map_features + config.model.loc_spec_channels
+    if config.data.dataset_name == "hurricanes":
+        output_channels = config.data.output_channels
+        input_channels = config.data.variable_channels + output_channels
+    else:
+        cond_var_channels, output_channels = list(map(len, get_variables(config.data.dataset_name)))
+        cond_time_channels = 3
+        input_channels = output_channels + cond_var_channels + cond_time_channels + config.model.map_features + config.model.loc_spec_channels
     channels=[32, 64, 128, 256]
     embed_dim=256
 
