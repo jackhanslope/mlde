@@ -43,7 +43,7 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 from torch.utils.tensorboard import SummaryWriter
 from .utils import save_checkpoint, restore_checkpoint
 
-from ml_downscaling_emulator.torch import get_dataloader
+from ml_downscaling_emulator.torch import get_dataloader, get_hurricanes_dataloader
 from mlde_utils import DatasetMetadata
 from ml_downscaling_emulator.training import log_epoch, track_run
 
@@ -109,14 +109,25 @@ def train(config, workdir):
         EXPERIMENT_NAME, run_name, run_config, ["score_sde"], tb_dir
     ) as (wandb_run, writer):
     # Build dataloaders
-    dataset_meta = DatasetMetadata(config.data.dataset_name)
-    train_dl, _, _ = get_dataloader(config.data.dataset_name, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.training.batch_size, split="train", ensemble_members=dataset_meta.ensemble_members(), include_time_inputs=config.data.time_inputs, evaluation=False)
-    eval_dl, _, _ = get_dataloader(config.data.dataset_name, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.training.batch_size, split="val", ensemble_members=dataset_meta.ensemble_members(), include_time_inputs=config.data.time_inputs, evaluation=False)
+    if config.data.dataset == "hurricanes":
+        train_dl = get_hurricanes_dataloader("train", config.training.batch_size)
+        eval_dl = get_hurricanes_dataloader("validation", config.training.batch_size)
+    else:
+        dataset_meta = DatasetMetadata(config.data.dataset_name)
+        train_dl, _, _ = get_dataloader(config.data.dataset_name, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.training.batch_size, split="train", ensemble_members=dataset_meta.ensemble_members(), include_time_inputs=config.data.time_inputs, evaluation=False)
+        eval_dl, _, _ = get_dataloader(config.data.dataset_name, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.training.batch_size, split="val", ensemble_members=dataset_meta.ensemble_members(), include_time_inputs=config.data.time_inputs, evaluation=False)
 
     # Initialize model.
     score_model = mutils.create_model(config)
     # include a learnable feature map
-    location_params = LocationParams(config.model.loc_spec_channels, config.data.image_size)
+    if config.data.dataset == "hurricanes":
+        location_params = LocationParams(
+            config.model.loc_spec_channels,
+            config.data.image_size_x,
+            config.data.image_size_y,
+        )
+    else:
+        location_params = LocationParams(config.model.loc_spec_channels, config.data.image_size)
     location_params = location_params.to(config.device)
     location_params = torch.nn.DataParallel(location_params)
     ema = ExponentialMovingAverage(itertools.chain(score_model.parameters(), location_params.parameters()), decay=config.model.ema_rate)
@@ -176,7 +187,8 @@ def train(config, workdir):
             x_batch = x_batch.to(config.device)
             cond_batch = cond_batch.to(config.device)
             # append any location-specific parameters
-            cond_batch = state['location_params'](cond_batch)
+            if config.model.loc_spec_channels > 0:
+                cond_batch = state['location_params'](cond_batch)
 
             if config.training.random_crop_size > 0:
               x_ch = x_batch.shape[1]

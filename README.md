@@ -10,6 +10,7 @@
 1. Clone and install https://github.com/henryaddison/mlde_utils into the environment: e.g. `pip install -e ../mlde_utils`
 1. Install ml_downscaling_emulator locally: `pip install -e .`
 1. Install unet code: `git clone --depth 1 git@github.com:henryaddison/Pytorch-UNet src/ml_downscaling_emulator/unet`
+1. Install hurricanes code: `pip install -e $PATH_TO_HURRICANES`
 
 ### Environment variables
 - `DERIVED_DATA`
