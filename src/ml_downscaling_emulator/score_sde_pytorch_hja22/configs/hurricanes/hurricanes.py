@@ -49,4 +49,10 @@ def get_config():
     model.conv_size = 3
     model.loc_spec_channels = 0
 
+    # sampling
+    sampling = config.sampling
+    sampling.method = "pc"
+    sampling.predictor = "euler_maruyama"
+    sampling.corrector = "none"
+
     return config
