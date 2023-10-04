@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+export WANDB_EXPERIMENT_NAME=mlde_test
+
+workdir=$(ls -1d output/test/2023-* | tail -1)
+
+epoch=2
+num_samples=2
+eval_batchsize=32
+
+rm -rf "{workdir}/samples/epoch-${epoch}"
+python bin/predict.py \
+  ${workdir} \
+  --dataset dataset_hurricanes \
+  --epoch ${epoch} \
+  --batch-size ${eval_batchsize} \
+  --num-samples ${num_samples} \
+  --ensemble-member 01
