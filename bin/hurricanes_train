@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+export WANDB_EXPERIMENT_NAME=mlde
+
+timestamp=$(date -u +%Y-%m-%dT%H:%M:%S%Z)
+workdir="output/cncsnpp/${timestamp}"
+config_path="src/ml_downscaling_emulator/score_sde_pytorch_hja22/configs/hurricanes/hurricanes.py"
+
+python bin/main.py \
+  --workdir ${workdir} \
+  --config ${config_path} \
+  --mode train
