@@ -64,5 +64,7 @@ def get_config():
 
   # data
   data = config.data
+  data.input_transform_key = "stan"
+  data.target_transform_key = "sqrturrecen"
 
   return config
