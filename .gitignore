@@ -1,3 +1,6 @@
+# ERA5 data
+data/era5
+
 # Ignore unet (managed in another repo)
 src/ml_downscaling_emulator/unet
 
