@@ -15,6 +15,7 @@ def get_config():
     data = config.data
     data.dataset = "hurricanes"
     data.dataset_name = "hurricanes"
+    data.image_size = 32
     data.image_size_x = 32
     data.image_size_y = 56
     # This will be input_data_steps * $(number of channels) when the dataset was created
