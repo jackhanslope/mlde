@@ -11,6 +11,8 @@ module add lang/cuda/11.2.2
 module add lang/gcc/9.3.0
 
 export ERA5_DATA_DIR=data/era5
+export KK_SLACK_WH_URL='https://hooks.slack.com'
+
 export workdir=(ls -1d output/cncsnpp/2023-* | tail -1)
 
 conda run -n mlde bin/hurricanes_sample
