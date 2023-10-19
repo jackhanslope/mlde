@@ -2,15 +2,20 @@
 
 set -euo pipefail
 
-export WANDB_EXPERIMENT_NAME=mlde_test
-
-workdir=$(ls -1d output/cncsnpp/2023-* | tail -1)
+export WANDB_EXPERIMENT_NAME=mlde_sample
 
 epoch=100
-num_samples=2
+num_samples=1
 eval_batchsize=32
 
-rm -rf "{workdir}/samples/epoch-${epoch}"
+output_dir=${workdir}/samples/epoch-${epoch}
+
+if [ -d  $output_dir ]; then
+  echo $output_dir already exists
+  echo Refusing to clobber
+  exit 1
+fi
+
 python bin/predict.py \
   ${workdir} \
   --dataset dataset_hurricanes \
