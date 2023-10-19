@@ -2,8 +2,7 @@
 
 set -euo pipefail
 
-export WANDB_EXPERIMENT_NAME=mlde_test
-
+export WANDB_EXPERIMENT_NAME=mlde_sample
 
 epoch=100
 num_samples=2
