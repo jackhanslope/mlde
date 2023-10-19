@@ -4,7 +4,6 @@ set -euo pipefail
 
 export WANDB_EXPERIMENT_NAME=mlde_test
 
-workdir=$(ls -1d output/cncsnpp/2023-* | tail -1)
 
 epoch=100
 num_samples=2
