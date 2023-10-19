@@ -5,7 +5,7 @@ set -euo pipefail
 export WANDB_EXPERIMENT_NAME=mlde_sample
 
 epoch=100
-num_samples=2
+num_samples=1
 eval_batchsize=32
 
 output_dir=${workdir}/samples/epoch-${epoch}

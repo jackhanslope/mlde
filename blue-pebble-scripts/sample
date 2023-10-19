@@ -2,7 +2,7 @@
 #SBATCH --job-name=mlde
 #SBATCH --cpus-per-task=1
 #SBATCH --gpus=rtx_3090:1
-#SBATCH --time=23:59:59
+#SBATCH --time=06:00:00
 #SBATCH --mem=22G
 #SBATCH --partition=cnu,gpu
 #SBATCH --account=COSC020762
