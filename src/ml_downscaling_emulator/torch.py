@@ -167,7 +167,7 @@ def get_hurricanes_dataloader(
     batch_size: int,
 ) -> DataLoader:
     def collate_fn(batch: list) -> list:
-        """Re-order the batch from `X, y` to `y, X, None`."""
+        """Add an extra dimension with None."""
         from torch.utils.data import default_collate
 
         collated_batch = default_collate(batch)
