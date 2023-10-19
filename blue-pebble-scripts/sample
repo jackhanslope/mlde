@@ -1,0 +1,15 @@
+#!/bin/bash
+#SBATCH --job-name=mlde
+#SBATCH --cpus-per-task=1
+#SBATCH --gpus=rtx_3090:1
+#SBATCH --time=23:59:59
+#SBATCH --mem=22G
+#SBATCH --partition=cnu,gpu
+#SBATCH --account=COSC020762
+
+module add lang/cuda/11.2.2
+module add lang/gcc/9.3.0
+
+export ERA5_DATA_DIR=data/era5
+
+conda run -n mlde bin/hurricanes_sample
