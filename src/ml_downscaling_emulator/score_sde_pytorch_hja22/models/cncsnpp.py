@@ -140,13 +140,17 @@ class cNCSNpp(nn.Module):
       raise ValueError(f'resblock type {resblock_type} unrecognized.')
 
     # Downsampling block
-    cond_var_channels, output_channels = list(map(len, get_variables(config.data.dataset_name)))
-    if config.data.time_inputs:
-      cond_time_channels = 3
-    else:
-      cond_time_channels = 0
 
-    channels = cond_var_channels + cond_time_channels + output_channels + config.model.map_features + config.model.loc_spec_channels
+    if config.data.dataset == "hurricanes":
+        output_channels = config.data.output_channels
+        channels = config.data.variable_channels + output_channels
+    else:
+        cond_var_channels, output_channels = list(map(len, get_variables(config.data.dataset_name)))
+        if config.data.time_inputs:
+            cond_time_channels = 3
+        else:
+            cond_time_channels = 0
+        channels = cond_var_channels + cond_time_channels + output_channels + config.model.map_features + config.model.loc_spec_channels
     if progressive_input != 'none':
       input_pyramid_ch = channels
 
@@ -294,7 +298,7 @@ class cNCSNpp(nn.Module):
       for i_block in range(self.num_res_blocks):
         h = modules[m_idx](hs[-1], temb)
         m_idx += 1
-        if h.shape[-1] in self.attn_resolutions:
+        if h.shape[-2] in self.attn_resolutions:
           h = modules[m_idx](h)
           m_idx += 1
 
@@ -340,7 +344,7 @@ class cNCSNpp(nn.Module):
         h = modules[m_idx](torch.cat([h, hs.pop()], dim=1), temb)
         m_idx += 1
 
-      if h.shape[-1] in self.attn_resolutions:
+      if h.shape[-2] in self.attn_resolutions:
         h = modules[m_idx](h)
         m_idx += 1
 

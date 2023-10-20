@@ -1,6 +1,7 @@
 import itertools
 import os
 from pathlib import Path
+from typing import Callable
 
 from codetiming import Timer
 from knockknock import slack_sender
@@ -15,8 +16,9 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 import xarray as xr
 import yaml
 
-from ml_downscaling_emulator.torch import get_dataloader
+from ml_downscaling_emulator.torch import get_dataloader, get_hurricanes_dataloader
 from mlde_utils import samples_path, DEFAULT_ENSEMBLE_MEMBER
+from mlde_utils.transforms import NoopT
 from mlde_utils.training.dataset import get_variables
 
 from ml_downscaling_emulator.score_sde_pytorch_hja22.losses import get_optimizer
@@ -96,10 +98,19 @@ def load_model(config, ckpt_filename):
 
     random_seed = 0  # @param {"type": "integer"}  # noqa: F841
 
+    if config.data.dataset == "hurricanes":
+        size_x = config.data.image_size_x
+        size_y = config.data.image_size_y
+    else:
+        size_x = config.data.image_size
+        size_y = config.data.image_size
+
     sigmas = mutils.get_sigmas(config)  # noqa: F841
     score_model = mutils.create_model(config)
     location_params = LocationParams(
-        config.model.loc_spec_channels, config.data.image_size
+        config.model.loc_spec_channels,
+        size_x,
+        size_y,
     )
     location_params = location_params.to(config.device)
     location_params = torch.nn.DataParallel(location_params)
@@ -123,12 +134,15 @@ def load_model(config, ckpt_filename):
     ema.copy_to(score_model.parameters())
 
     # Sampling
-    num_output_channels = len(get_variables(config.data.dataset_name)[1])
+    if config.data.dataset == "hurricanes":
+        num_output_channels = config.data.output_channels
+    else:
+        num_output_channels = len(get_variables(config.data.dataset_name)[1])
     sampling_shape = (
         config.eval.batch_size,
         num_output_channels,
-        config.data.image_size,
-        config.data.image_size,
+        size_x,
+        size_y,
     )
     sampling_fn = sampling.get_sampling_fn(config, sde, sampling_shape, sampling_eps)
 
@@ -175,6 +189,12 @@ def load_config(config_path):
 
     return config
 
+def get_sample_function(config: config_dict.ConfigDict) -> Callable:
+    """Return either the generic `sample` function or `hurricanes_sample`."""
+    if config.data.dataset == "hurricanes":
+        return hurricanes_sample
+    else:
+        return sample
 
 def sample(sampling_fn, state, config, eval_dl, target_transform):
     score_model = state["model"]
@@ -229,6 +249,31 @@ def sample(sampling_fn, state, config, eval_dl, target_transform):
     return ds
 
 
+def hurricanes_sample(sampling_fn, state, config, eval_dl, _) -> np.ndarray:
+    score_model = state["model"]
+    preds = []
+    with logging_redirect_tqdm():
+        with tqdm(
+            total=len(eval_dl.dataset),
+            desc="Sampling",
+            unit=" timesteps",
+        ) as pbar:
+            for cond_batch, _, _ in eval_dl:
+                np_samples = generate_np_samples(
+                    sampling_fn,
+                    score_model,
+                    config,
+                    cond_batch,
+                )
+
+                preds.append(np_samples)
+
+                pbar.update(cond_batch.shape[0])
+
+            preds_arr = np.concatenate(preds)
+
+            return preds_arr
+
 @app.command()
 @Timer(name="sample", text="{name}: {minutes:.1f} minutes", logger=logger.info)
 @slack_sender(webhook_url=os.getenv("KK_SLACK_WH_URL"), channel="general")
@@ -265,20 +310,24 @@ def main(
 
     transform_dir = os.path.join(workdir, "transforms")
 
-    # Data
-    eval_dl, _, target_transform = get_dataloader(
-        dataset,
-        config.data.dataset_name,
-        config.data.input_transform_key,
-        config.data.target_transform_key,
-        transform_dir,
-        split=split,
-        ensemble_members=[ensemble_member],
-        include_time_inputs=config.data.time_inputs,
-        evaluation=True,
-        batch_size=config.eval.batch_size,
-        shuffle=False,
-    )
+    # Data: 
+    if config.data.dataset == "hurricanes":
+        eval_dl = get_hurricanes_dataloader("test", config.eval.batch_size)
+        target_transform = NoopT()
+    else:
+        eval_dl, _, target_transform = get_dataloader(
+            dataset,
+            config.data.dataset_name,
+            config.data.input_transform_key,
+            config.data.target_transform_key,
+            transform_dir,
+            split=split,
+            ensemble_members=[ensemble_member],
+            include_time_inputs=config.data.time_inputs,
+            evaluation=True,
+            batch_size=config.eval.batch_size,
+            shuffle=False,
+        )
 
     ckpt_filename = os.path.join(workdir, "checkpoints", f"epoch_{epoch}.pth")
     logger.info(f"Loading model from {ckpt_filename}")
@@ -286,12 +335,16 @@ def main(
 
     for sample_id in range(num_samples):
         typer.echo(f"Sample run {sample_id}...")
-        xr_samples = sample(sampling_fn, state, config, eval_dl, target_transform)
+        sample_function = get_sample_function(config)
+        samples = sample_function(sampling_fn, state, config, eval_dl, target_transform)
 
-        output_filepath = output_dirpath / f"predictions-{shortuuid.uuid()}.nc"
+        output_filepath = output_dirpath / f"predictions-{shortuuid.uuid()}"
 
         logger.info(f"Saving samples to {output_filepath}...")
-        xr_samples.to_netcdf(output_filepath)
+        if config.data.dataset == "hurricanes":
+            np.save(output_filepath, samples)
+        else:
+            samples.to_netcdf(output_filepath / ".nc")
 
 
 if __name__ == "__main__":

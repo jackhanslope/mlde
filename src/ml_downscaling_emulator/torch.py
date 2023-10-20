@@ -1,9 +1,9 @@
 import cftime
 import numpy as np
 import torch
-from torch.utils.data import Dataset, DataLoader
-
+from hurricanes.utils import ERA5_DATA_DIR
 from mlde_utils.training.dataset import get_dataset, get_variables
+from torch.utils.data import DataLoader, Dataset
 
 TIME_RANGE = (
     cftime.Datetime360Day(1980, 12, 1, 12, 0, 0, 0, has_year_zero=True),
@@ -160,3 +160,19 @@ def get_dataloader(
     )
 
     return data_loader, transform, target_transform
+
+
+def get_hurricanes_dataloader(
+    split: str,
+    batch_size: int,
+) -> DataLoader:
+    def collate_fn(batch: list) -> list:
+        """Add an extra dimension with None."""
+        from torch.utils.data import default_collate
+
+        collated_batch = default_collate(batch)
+        return [*collated_batch, None]
+
+    dataset = torch.load(ERA5_DATA_DIR / f"{split}_dataset_era5.pt")
+    dataloader = DataLoader(dataset, batch_size=batch_size, collate_fn=collate_fn)
+    return dataloader
