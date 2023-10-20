@@ -10,12 +10,6 @@ mlruns/
 runs/
 wandb/
 
-# Slurm job output
-slurm-*.out
-slurm-*.err
-*.o
-*.work.o[0-9][0-9][0-9][0-9][0-9][0-9]
-
 # local test data
 output/
 
