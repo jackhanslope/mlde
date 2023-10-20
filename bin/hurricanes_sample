@@ -10,12 +10,6 @@ eval_batchsize=32
 
 output_dir=${workdir}/samples/epoch-${epoch}
 
-if [ -d  $output_dir ]; then
-  echo $output_dir already exists
-  echo Refusing to clobber
-  exit 1
-fi
-
 python bin/predict.py \
   ${workdir} \
   --dataset dataset_hurricanes \
