@@ -23,7 +23,6 @@ y_shape = predicted_wind_field.shape[2]
 # `u` is eastward
 # `v` is northward
 
-
 size = 100
 many_i = np.random.choice(len(val_dataset), size=size, replace=False)
 for count, i in enumerate(many_i):
@@ -74,4 +73,6 @@ for count, i in enumerate(many_i):
 
     plt.savefig(f"figures/i-{i:04d}.png")
 
-    print(f"{count}/{size}")
+    plt.close()
+
+    print(f"{count + 1}/{size}")
