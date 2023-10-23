@@ -7,27 +7,23 @@ from hurricanes.utils import ERA5_DATASETS_DIR
 
 Path("figures").mkdir(exist_ok=True)
 
+# Data loading
 val_dataset = torch.load(ERA5_DATASETS_DIR / "delta-1" / "test_dataset_era5.pt")
-
 predicted_wind_field = np.load(
     "output/cncsnpp/2023-10-18T20:56:02UTC/samples/epoch-100/dataset_hurricanes/pixelmmsstanur/val/01/predictions-9e6SMJpdgxsnnRcfjPt9UY.npy"
 )
-
 x_shape = predicted_wind_field.shape[3]
 y_shape = predicted_wind_field.shape[2]
 
-# `wind_field` shape is `(num_samples, channels, lat, long) = (1701, 2, 32, 56)`
-#
-# `channels` is `u200, v200`
-#
-# `u` is eastward
-# `v` is northward
-
+# Config
 size = 100
 many_i = np.random.choice(len(val_dataset), size=size, replace=False)
+
 for count, i in enumerate(many_i):
+
     plt.figure(figsize=(8, 12))
 
+    # Predicted
     u_pred = predicted_wind_field[i, 0]
     v_pred = predicted_wind_field[i, 1]
 
@@ -50,6 +46,7 @@ for count, i in enumerate(many_i):
 
     plt.title(f"Predicted data for i={i}")
 
+    # True
     _, (u_true, v_true) = val_dataset[i]
 
     x_true = np.arange(x_shape)
@@ -71,8 +68,7 @@ for count, i in enumerate(many_i):
 
     plt.title(f"True data for i={i}")
 
+    # Saving and logging
     plt.savefig(f"figures/i-{i:04d}.png")
-
     plt.close()
-
     print(f"{count + 1}/{size}")
