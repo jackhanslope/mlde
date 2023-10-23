@@ -1,7 +1,11 @@
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from hurricanes.utils import ERA5_DATASETS_DIR
+
+Path("figures").mkdir(exist_ok=True)
 
 val_dataset = torch.load(ERA5_DATASETS_DIR / "delta-1" / "test_dataset_era5.pt")
 
@@ -19,7 +23,10 @@ y_shape = predicted_wind_field.shape[2]
 # `u` is eastward
 # `v` is northward
 
-for i in np.random.choice(len(val_dataset), size=10, replace=False):
+
+size = 100
+many_i = np.random.choice(len(val_dataset), size=size, replace=False)
+for count, i in enumerate(many_i):
     plt.figure(figsize=(8, 12))
 
     u_pred = predicted_wind_field[i, 0]
@@ -65,4 +72,6 @@ for i in np.random.choice(len(val_dataset), size=10, replace=False):
 
     plt.title(f"True data for i={i}")
 
-    plt.savefig(f"figures/i-{i}.png")
+    plt.savefig(f"figures/i-{i:04d}.png")
+
+    print(f"{count}/{size}")
