@@ -32,7 +32,7 @@ for count, i in enumerate(many_i):
 
     X_pred, Y_pred = np.meshgrid(x_pred, y_pred)
 
-    plt.subplot(211)
+    plt.subplot(212)
     plt.quiver(
         X_pred,
         Y_pred,
@@ -54,7 +54,7 @@ for count, i in enumerate(many_i):
 
     X_true, Y_true = np.meshgrid(x_true, y_true)
 
-    plt.subplot(212)
+    plt.subplot(211)
     plt.quiver(
         X_true,
         Y_true,
