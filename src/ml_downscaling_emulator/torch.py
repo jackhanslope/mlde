@@ -165,6 +165,8 @@ def get_dataloader(
 def get_hurricanes_dataloader(
     split: str,
     batch_size: int,
+    wind: int,
+    delta: int,
 ) -> DataLoader:
     def collate_fn(batch: list) -> list:
         """Add an extra dimension with None."""
@@ -173,6 +175,6 @@ def get_hurricanes_dataloader(
         collated_batch = default_collate(batch)
         return [*collated_batch, None]
 
-    dataset = utils.load_dataset("era5", 850, 1, split)
+    dataset = utils.load_dataset("era5", wind, delta, split)
     dataloader = DataLoader(dataset, batch_size=batch_size, collate_fn=collate_fn)
     return dataloader

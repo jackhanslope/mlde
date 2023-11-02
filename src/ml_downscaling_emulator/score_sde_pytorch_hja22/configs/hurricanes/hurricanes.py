@@ -22,6 +22,8 @@ def get_config():
     # in the hurricanes directory.
     data.variable_channels = 112
     data.output_channels = 2
+    data.wind = 850
+    data.delta = 1
 
     # model
     model = config.model

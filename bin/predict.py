@@ -312,7 +312,7 @@ def main(
 
     # Data: 
     if config.data.dataset == "hurricanes":
-        eval_dl = get_hurricanes_dataloader("test", config.eval.batch_size)
+        eval_dl = get_hurricanes_dataloader("test", config.eval.batch_size, config.data.wind, config.data.delta)
         target_transform = NoopT()
     else:
         eval_dl, _, target_transform = get_dataloader(
