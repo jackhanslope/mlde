@@ -110,8 +110,8 @@ def train(config, workdir):
     ) as (wandb_run, writer):
     # Build dataloaders
     if config.data.dataset == "hurricanes":
-        train_dl = get_hurricanes_dataloader("train", config.training.batch_size)
-        eval_dl = get_hurricanes_dataloader("validation", config.training.batch_size)
+        train_dl = get_hurricanes_dataloader("train", config.training.batch_size, config.data.wind, config.data.delta)
+        eval_dl = get_hurricanes_dataloader("validation", config.training.batch_size, config.data.wind, config.data.delta)
     else:
         dataset_meta = DatasetMetadata(config.data.dataset_name)
         train_dl, _, _ = get_dataloader(config.data.dataset_name, config.data.dataset_name, config.data.input_transform_key, config.data.target_transform_key, transform_dir, batch_size=config.training.batch_size, split="train", ensemble_members=dataset_meta.ensemble_members(), include_time_inputs=config.data.time_inputs, evaluation=False)
