@@ -1,7 +1,7 @@
 import cftime
 import numpy as np
 import torch
-from hurricanes.utils import ERA5_DATA_DIR
+from hurricanes import utils
 from mlde_utils.training.dataset import get_dataset, get_variables
 from torch.utils.data import DataLoader, Dataset
 
@@ -173,6 +173,6 @@ def get_hurricanes_dataloader(
         collated_batch = default_collate(batch)
         return [*collated_batch, None]
 
-    dataset = torch.load(ERA5_DATA_DIR / f"{split}_dataset_era5.pt")
+    dataset = utils.load_dataset("era5", 850, 1, split)
     dataloader = DataLoader(dataset, batch_size=batch_size, collate_fn=collate_fn)
     return dataloader
