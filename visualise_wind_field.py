@@ -2,20 +2,15 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
-import torch
-from hurricanes.utils import ERA5_DATASETS_DIR, HURRICANE_DATA_DIR
+from hurricane import utils
 
 figure_dir = Path("figures/comparison")
 figure_dir.mkdir(exist_ok=True)
 
 # Data loading
-hur_test_dataset = torch.load(
-    HURRICANE_DATA_DIR / "wind-850" / "delta-1" / "test_dataset.pt"
-)
+hur_test_dataset = utils.load_dataset("hurricane", 850, 1, "test")
 
-era5_test_dataset = torch.load(
-    ERA5_DATASETS_DIR / "wind-850" / "delta-1" / "test_dataset_era5.pt"
-)
+era5_test_dataset = utils.load_dataset("era5", 850, 1, "test")
 
 
 predicted_wind_field = np.load(
@@ -44,7 +39,7 @@ for count, i in enumerate(many_i):
 
     X_pred, Y_pred = np.meshgrid(x_pred, y_pred)
 
-    plt.subplot(212)
+    plt.subplot(312)
     plt.quiver(
         X_pred,
         Y_pred,
@@ -72,7 +67,7 @@ for count, i in enumerate(many_i):
 
     X_true, Y_true = np.meshgrid(x_true, y_true)
 
-    plt.subplot(211)
+    plt.subplot(311)
     plt.quiver(
         X_true,
         Y_true,
@@ -89,8 +84,28 @@ for count, i in enumerate(many_i):
         c="C1",
         marker="x",
     )
-
     plt.title(f"True data for i={i}")
+
+    u_diff = u_true - u_pred
+    v_diff = v_true - v_pred
+    plt.subplot(313)
+    plt.quiver(
+        X_true,
+        Y_true,
+        u_diff,
+        v_diff,
+        scale=1000,
+        scale_units="width",
+        angles="uv",
+        cmap="viridis",
+    )
+    plt.scatter(
+        loc_lon,
+        loc_lat,
+        c="C1",
+        marker="x",
+    )
+    plt.title(f"True data - predicted data for i={i}")
 
     # Saving and logging
     plt.savefig(f"{figure_dir}/i-{i:04d}.png")
