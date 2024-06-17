@@ -12,6 +12,10 @@
 1. Install unet code: `git clone --depth 1 git@github.com:henryaddison/Pytorch-UNet src/ml_downscaling_emulator/unet`
 1. Install hurricanes code: `pip install -e $PATH_TO_HURRICANES`
 
+### SLURM
+
+`module add lang/cuda/11.2.2 lang/gcc/9.3.0 lib/cudnn/8.0`
+
 ### Environment variables
 - `DERIVED_DATA`
 - `MOOSE_DERIVED_DATA`. Probably `${DERIVED_DATA}/MOOSE`
