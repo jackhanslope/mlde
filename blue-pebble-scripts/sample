@@ -9,6 +9,7 @@
 
 module add lang/cuda/11.2.2
 module add lang/gcc/9.3.0
+module add lib/cudnn/8.0
 
 export KK_SLACK_WH_URL='https://hooks.slack.com'
 
