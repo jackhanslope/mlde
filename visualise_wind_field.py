@@ -1,8 +1,7 @@
 from pathlib import Path
-
 import matplotlib.pyplot as plt
 import numpy as np
-from hurricane import utils
+from hurricanes import utils
 
 figure_dir = Path("figures/comparison")
 figure_dir.mkdir(exist_ok=True)
