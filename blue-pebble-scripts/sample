@@ -1,8 +1,8 @@
 #!/bin/bash
-#SBATCH --job-name=mlde
+#SBATCH --job-name=mlde-sample-2
 #SBATCH --cpus-per-task=1
 #SBATCH --gpus=rtx_3090:1
-#SBATCH --time=06:00:00
+#SBATCH --time=12:00:00
 #SBATCH --mem=22G
 #SBATCH --partition=cnu,gpu
 #SBATCH --account=COSC020762
@@ -13,6 +13,6 @@ module add lib/cudnn/8.0
 
 export KK_SLACK_WH_URL='https://hooks.slack.com'
 
-export workdir=$(ls -1d $ERA5_DATASETS_DIR/mlde_output/cncsnpp/2024-* | tail -1)
+export workdir=$(ls -1d $ERA5_DATASETS_DIR/mlde_output/cncsnpp/*-delta2 | tail -1)
 
 conda run -n mlde bin/hurricanes_sample
