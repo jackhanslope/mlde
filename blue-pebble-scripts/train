@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=mlde
+#SBATCH --job-name=mlde_train
 #SBATCH --cpus-per-task=1
 #SBATCH --gpus=rtx_3090:1
 #SBATCH --time=05:59:59
